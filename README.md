@@ -1,6 +1,8 @@
 # Doodle Derby
 
-A playable first prototype of a local two-player 3D Soapbox party game, set on a San Francisco-inspired downhill course.
+A playable two-player 3D soapbox party game, set on a San Francisco-inspired downhill course. Play on one keyboard or use individual phone controllers with a shared race screen.
+
+[Play Doodle Derby](https://doodle-derby-akshat.quiteparticular.chatgpt.site) · [Source repository](https://github.com/akshat10/soapbox)
 
 ## Play
 
@@ -67,3 +69,17 @@ The repeatable physics checks exercise control rules, recovery, lane fairness, a
 ## Code ownership
 
 `game/physics.ts` owns simulation, `game/track.ts` owns shared terrain geometry, `game/catalogue.ts` owns build definitions and validation, `game/visuals.ts` owns models and scenery, `game/renderer.ts` owns cameras/rendering, and `components/DoodleDerby.tsx` owns the session and input integration. `components/DerbyUI.tsx` provides the garage and race screens.
+
+## Project materials
+
+- `app/`, `components/`, `game/`, `lib/`, and `db/`: playable game, phone controllers, room service, and simulation.
+- `drizzle/`: versioned room-database migrations.
+- `public/models/`: the 3D models loaded by the game.
+- [Asset workshop](asset-workshop/README.md): Blender generation scripts, editable `.blend` source, exports, and the rendered study.
+- [SF concept art](reference-art/sf-derby/README.md): six original reference sheets and their source manifest.
+- [Build plan](DOODLE_DERBY_PLAN.md) and [implemented milestones](PLAYABLE_MILESTONE.md).
+- [Art direction](ART_DIRECTION.md), [visual checks](design-qa.md), and [proposed SF customization](SILICON_VALLEY_RACER_CUSTOMIZATION.md).
+
+Proposed features in the planning documents are not necessarily implemented. The current playable features and limitations are described above.
+
+Room API regression checks: `node --import tsx game/party-check.ts` (Node 24 recommended for the built-in SQLite test fixture).
