@@ -50,10 +50,9 @@ export async function loadCourseScene(): Promise<CourseScene> {
     node.traverse(child=>circuitProtected.add(child));
   });
   placeCircuitFinish(root);
-  let ringPrototype: THREE.Object3D | undefined;
   root.traverse(node => {
     const assetId = node.userData.asset_id;
-    if (assetId === 'track_aerial_ring') { ringPrototype ??= node; node.visible = false; }
+    if (assetId === 'track_aerial_ring') node.visible = false;
     if (assetId === 'track_boost_pad' || /sf_cloud_cluster|^sf_distant_sailboat[._]?006$|^sf_coastal_rocks[._]?006$/i.test(node.name)) node.visible = false;
   });
   const cityBackdrop = createCityBackdrop(root);
@@ -98,7 +97,7 @@ export async function loadCourseScene(): Promise<CourseScene> {
     group.forEach((node, index) => { batch.setMatrixAt(index, node.matrixWorld); node.visible = false; });
     batch.instanceMatrix.needsUpdate = true; batch.computeBoundingSphere(); root.add(batch);
   }
-  const features = new CourseFeatureVisuals(root, ringPrototype);
+  const features = new CourseFeatureVisuals(root);
   root.add(cityBackdrop);
   features.setCircuit(true);
   const returnRoad=createCircuitScene();root.add(returnRoad);

@@ -22,6 +22,8 @@ export const SIGNATURE_JUMPS = [
 export const BOOST_SPEED_GAIN = 2.25;
 export const BOOST_SPEED_CAP = 18;
 export const BOOST_FEEDBACK_SECONDS = .85;
+export const RESET_BOOST_SECONDS = 3;
+export const RESET_SPEED_GAIN = 4;
 export const ROUGH_RESISTANCE = .8;
 
 export function insideStrip(strip: CourseStrip, distance: number, lateral: number): boolean {
