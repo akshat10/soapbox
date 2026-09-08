@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { BAY_OR_BUST_COURSE as course } from './course';
 import { AERIAL_RINGS, BOOST_PADS, ROUGH_PATCHES, SIGNATURE_JUMPS, type CourseStrip } from './course-features';
 import type { VehicleSnapshot } from './types';
+import { createResetPickup, createResetTexture } from './reset-pickup';
+import { createSiliconValleyScene, type ValleyScene } from './silicon-valley-scene';
 
 type SurfacePoint = readonly [distance: number, lateral: number];
 type Paint = { positions: number[]; material: THREE.MeshStandardMaterial; name: string };
@@ -68,8 +70,11 @@ export class CourseFeatureVisuals {
   private readonly rings: { id: string; root: THREE.Group; artwork: THREE.Object3D }[] = [];
   private readonly pads: { definition: CourseStrip; material: THREE.MeshStandardMaterial }[] = [];
   private elapsed = 0;
+  private readonly valley: ValleyScene;
 
-  constructor(courseRoot: THREE.Group, ringPrototype?: THREE.Object3D) {
+  constructor(courseRoot: THREE.Group) {
+    this.valley = createSiliconValleyScene(courseRoot);
+    this.root.add(this.valley.root);
     this.root.name = 'Bay or Bust · playable feature cues';
     const gold = paint('Feature paint · warm gold', 0xffcf59);
     const cream = paint('Feature paint · warm white', 0xffefd1);
@@ -127,9 +132,10 @@ export class CourseFeatureVisuals {
 
     for (const target of [gold, cream, dark, stone, lightStone, wood]) finishPaint(this.root, target);
 
+    const resetTexture = createResetTexture();
     for (const ring of AERIAL_RINGS) {
       const anchor = new THREE.Group();
-      anchor.name = `Aerial target · ${ring.id}`;
+      anchor.name = `ChatGPT reset · ${ring.id}`;
       anchor.userData.featureId = ring.id;
       const frame = course.frame(ring.distance);
       const right = new THREE.Vector3(frame.right.x, frame.right.y, frame.right.z);
@@ -138,20 +144,7 @@ export class CourseFeatureVisuals {
       anchor.position.set(frame.position.x, frame.position.y, frame.position.z)
         .addScaledVector(right, ring.lateral).addScaledVector(up, ring.height);
       anchor.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, up, forward));
-      let artwork: THREE.Object3D;
-      if (ringPrototype) {
-        artwork = ringPrototype.clone(true);
-        artwork.position.set(0, 0, 0); artwork.quaternion.identity();
-        // The native artwork has a 1.8m clear opening and its pivot at its center.
-        artwork.scale.setScalar(ring.radius / 1.8);
-        artwork.traverse(node => {
-          node.visible = true; node.name = `${ring.id} · ${node.name}`;
-          if (node instanceof THREE.Mesh) { node.castShadow = false; node.receiveShadow = true; }
-        });
-      } else {
-        artwork = new THREE.Mesh(new THREE.TorusGeometry(ring.radius + .14, .14, 8, 48),
-          new THREE.MeshStandardMaterial({ name: 'Aerial target · gold', color: 0xffcd51, roughness: .4, metalness: .25 }));
-      }
+      const artwork = createResetPickup(ring.radius, resetTexture);
       anchor.add(artwork); this.root.add(anchor);
       this.rings.push({ id: ring.id, root: anchor, artwork });
     }
@@ -159,11 +152,12 @@ export class CourseFeatureVisuals {
   }
 
   update(snapshot: VehicleSnapshot | undefined, dt: number, active: boolean, reducedMotion: boolean): void {
+    this.valley.update(snapshot?.lap ?? 1);
     if (active && !reducedMotion) this.elapsed += Math.max(0, Math.min(dt, .1));
     for (const ring of this.rings) {
       ring.root.visible = !snapshot?.collectedRings?.includes(ring.id);
-      // Spin within the target plane, so the opening always matches its sensor.
-      ring.artwork.rotation.z = reducedMotion ? 0 : this.elapsed * .22;
+      // The token stays aligned with its sensor and its RESET label stays readable.
+      ring.artwork.rotation.z = 0;
     }
     for (const pad of this.pads) {
       const s = snapshot?.pathDistance ?? -Infinity;

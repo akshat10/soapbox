@@ -68,7 +68,7 @@ export class SoloFeedbackTracker {
     else if (player.finished && !previous.finished) announce('finish', 'Across the line!', `${place}${place === 1 ? 'st' : place === 2 ? 'nd' : place === 3 ? 'rd' : 'th'} place · ${player.finishTime?.toFixed(2)}s`, FEEDBACK_TIMING.finish);
     else if ((player.lap ?? 1) > (previous.lap ?? 1)) announce('lap', player.lap === player.laps ? 'Final lap!' : `Lap ${player.lap} / ${player.laps}`, 'Make this one count', FEEDBACK_TIMING.landmark);
     else if (player.recovering && !previous.recovering) announce('recover', 'Quick pit stop', 'Back on the road in a moment');
-    else if ((player.rings ?? 0) > (previous.rings ?? 0)) announce('ring', 'Got it!', `${player.rings} ${player.rings === 1 ? 'ring' : 'rings'} collected`);
+    else if ((player.rings ?? 0) > (previous.rings ?? 0)) announce('ring', 'ChatGPT reset!', 'Rate limit lifted · 3s speed boost', 2);
     else if ((player.boosts ?? 0) > (previous.boosts ?? 0)) announce('boost', 'Here we go!', 'Boost strip');
     else if (!player.recovering && previous.recovering) announce('recover', 'Back in it', 'Keep going — there’s still road ahead');
     else if (!player.finished && !player.recovering && place < this.previousPlace && elapsed - this.lastPass > FEEDBACK_TIMING.passCooldown && elapsed > 3) {

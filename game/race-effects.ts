@@ -28,7 +28,7 @@ export class RaceEffects {
   this.charge.visible = false;
   this.group.add(this.charge);
   const streakGeometry = new THREE.BoxGeometry(.055, .045, 2.2);
-  const streakMaterial = new THREE.MeshBasicMaterial({color:0xffdc75,transparent:true,opacity:0,depthWrite:false});
+  const streakMaterial = new THREE.MeshBasicMaterial({color:0x63ffd4,transparent:true,opacity:0,depthWrite:false});
   this.boostStreaks = [-.7, 0, .7].map(() => {
    const mesh = new THREE.Mesh(streakGeometry, streakMaterial); mesh.visible = false; this.group.add(mesh); return mesh;
   });
@@ -70,7 +70,7 @@ export class RaceEffects {
   this.lastRings = snapshot.rings || 0;
   if (active && !reducedMotion && ringCollected) {
    this.dust.forEach(puff => {
-    puff.age = 0; puff.mesh.position.copy(snapshot.position); puff.mesh.material.color.setHex(0xffd15c); puff.mesh.visible = true;
+    puff.age = 0; puff.mesh.position.copy(snapshot.position); puff.mesh.material.color.setHex(0x63ffd4); puff.mesh.visible = true;
    });
   }
   if (!snapshot.grounded && !snapshot.recovering) this.airborneTime += dt;
