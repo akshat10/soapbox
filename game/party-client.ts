@@ -1,6 +1,5 @@
 'use client';
 
-import { raceDiagnostics as diag } from '@/game/race-diagnostics';
 import { DEFAULT_BUILDS, isLegalBuild } from '@/game/catalogue';
 import type { Blueprint, PlayerId } from '@/game/types';
 import { MAX_PARTY_PLAYERS } from '@/game/party-types';
@@ -167,7 +166,6 @@ interface HostPeer {
   lastDirectPacketAt: number;
   peer?: RTCPeerConnection;
   channel?: RTCDataChannel;
-  stateChannel?: RTCDataChannel;
   offerKey: string;
   answer?: RTCSessionDescriptionInit;
 }
@@ -184,12 +182,12 @@ export class PartyHost {
   private state: PartyState;
   private stateRevision = 0;
   private disposed = false;
+  private lastBroadcast = 0;
   private lastPlayersKey = '';
   private lastError = '';
   private closeRequest: Promise<void> | null = null;
 
   constructor(identity: HostIdentity, callbacks: HostCallbacks, initialState: PartyState, api: PartyApi) {
-    diag.session();
     this.code = identity.code;
     this.token = identity.token;
     this.expiresAt = identity.expiresAt;
@@ -215,31 +213,14 @@ export class PartyHost {
 
   publish(state: PartyState) {
     if (this.disposed) return;
-    diag.mark('publish');
     const stageChanged = this.state.stage !== state.stage || this.state.heat !== state.heat || this.state.paused !== state.paused;
     this.state = { ...state, revision: ++this.stateRevision };
-    // The game loop already controls publication cadence. A second clock gate
-    // drops legitimate frames when the two timers straddle the same threshold.
-    let sent = false;
-    for (const peer of this.peers) if (this.sendState(peer)) sent = true;
-    if (sent) diag.mark('send');
-    if (stageChanged) this.poll.wake();
-  }
-
-  private sendState(peer: HostPeer) {
-    const message = { type: 'state', state: this.state };
-    const channel = peer.stateChannel;
-    if (channel?.readyState === 'open') {
-      // Replaceable snapshots must not congest the reliable input channel.
-      if (channel.bufferedAmount > MAX_RTC_BUFFER) { diag.mark('sendBlocked'); return false; }
-      if (safeSend(channel, message)) return true;
-      peer.stateChannel = undefined;
-      channel.close();
+    const now = performance.now();
+    if (stageChanged || now - this.lastBroadcast >= 33) {
+      this.lastBroadcast = now;
+      for (const peer of this.peers) safeSend(peer.channel, { type: 'state', state: this.state });
     }
-    // v5 clients and browsers that reject the extra channel retain the old path.
-    const sent = safeSend(peer.channel, message);
-    if (!sent && peer.channel?.readyState === 'open') diag.mark('sendBlocked');
-    return sent;
+    if (stageChanged) this.poll.wake();
   }
 
   private notifyPlayers() {
@@ -325,25 +306,12 @@ export class PartyHost {
     slot.offerKey = key;
     slot.answer = undefined;
     slot.channel?.close();
-    slot.stateChannel?.close();
     slot.peer?.close();
     let peer: RTCPeerConnection;
     try { peer = new RTCPeerConnection(RTC_CONFIGURATION); } catch { return; }
     slot.peer = peer;
     peer.ondatachannel = event => {
-      if (this.disposed || slot.peer !== peer || !['doodle-controller', 'doodle-state'].includes(event.channel.label)) { event.channel.close(); return; }
-      if (event.channel.label === 'doodle-state') {
-        slot.stateChannel = event.channel;
-        event.channel.onopen = () => { if (!this.disposed && slot.peer === peer) this.sendState(slot); };
-        event.channel.onerror = () => event.channel.close();
-        event.channel.onclose = () => {
-          if (!this.disposed && slot.peer === peer && slot.stateChannel === event.channel) {
-            slot.stateChannel = undefined;
-            this.sendState(slot);
-          }
-        };
-        return;
-      }
+      if (this.disposed || slot.peer !== peer || event.channel.label !== 'doodle-controller') { event.channel.close(); return; }
       slot.channel = event.channel;
       event.channel.onmessage = message => {
         if (slot.peer !== peer || this.disposed) return;
@@ -353,13 +321,12 @@ export class PartyHost {
           this.acceptPacket(id, parsed.packet, slot.lastDirectPacketAt);
         }
       };
-      event.channel.onopen = () => { if (!this.disposed && slot.peer === peer) this.sendState(slot); };
+      event.channel.onopen = () => safeSend(event.channel, { type: 'state', state: this.state });
       event.channel.onclose = () => {
         if (slot.peer === peer && !this.disposed) {
           // A route change must preserve a held spring while the relay is healthy.
           // The controller lease still cancels input if both routes disappear.
           slot.lastDirectPacketAt = 0;
-          slot.stateChannel?.close();
           this.poll.wake();
         }
       };
@@ -393,7 +360,6 @@ export class PartyHost {
     for (const peer of this.peers) {
       this.callbacks.onInput(peer.player.id, 'cancel');
       peer.channel?.close();
-      peer.stateChannel?.close();
       peer.peer?.close();
     }
   }
@@ -420,7 +386,6 @@ export class PartyController {
   private connection: PartyConnection = 'connecting';
   private peer?: RTCPeerConnection;
   private channel?: RTCDataChannel;
-  private stateChannel?: RTCDataChannel;
   private offer: RTCSessionDescriptionInit | null = null;
   private nextRtcAttempt = 0;
   private negotiating = false;
@@ -439,7 +404,6 @@ export class PartyController {
   private blur = () => this.cancelForLifecycle();
 
   constructor(identity: PartyIdentity, callbacks: ControllerCallbacks, api: PartyApi) {
-    diag.session();
     this.code = identity.code;
     this.playerId = identity.playerId;
     this.token = identity.token;
@@ -534,7 +498,6 @@ export class PartyController {
 
   private receiveState(state: PartyState, direct: boolean) {
     if (this.disposed || !isPartyState(state)) return;
-    diag.receive(state,direct);
     const now = Date.now();
     const revision = state.revision;
     if (revision === undefined ? this.latestStateRevision >= 0 : revision < this.latestStateRevision) return;
@@ -542,10 +505,6 @@ export class PartyController {
     if (revision !== undefined) this.latestStateRevision = revision;
     if (direct) this.lastDirectStateAt = now;
     this.lastHostSeen = now;
-    if (revision !== undefined && revision === this.latestState?.revision) {
-      this.setConnection(direct || this.directIsFresh() ? 'direct' : 'relay');
-      return;
-    }
     const oldState = this.latestState;
     this.latestState = state;
     if (state.paused && !oldState?.paused) this.input('cancel');
@@ -564,7 +523,6 @@ export class PartyController {
   private async sync() {
     if (this.disposed || this.terminal) return;
     try {
-      const peer = this.peer;
       const packet = this.packet();
       const reply = await this.api.post<PlayerReply>({ action: 'player', code: this.code, token: this.token, packet });
       if (this.disposed) return;
@@ -572,8 +530,9 @@ export class PartyController {
         this.lastHostSeen = Date.now();
         if (reply.state) this.receiveState(reply.state, false);
       } else if (Date.now() - this.lastDirectStateAt > HOST_LEASE_MS) this.setConnection('disconnected');
-      if (reply.answer?.type === 'answer' && packet.offer && peer && this.peer === peer && !peer.remoteDescription
+      if (reply.answer?.type === 'answer' && packet.offer && this.peer && !this.peer.remoteDescription
         && packet.offer.sdp === this.offer?.sdp) {
+        const peer = this.peer;
         try { await peer.setRemoteDescription(reply.answer); } catch {
           if (this.peer === peer) { peer.close(); this.peer = undefined; this.nextRtcAttempt = Date.now() + 5_000; }
         }
@@ -594,11 +553,8 @@ export class PartyController {
   private async prepareOffer() {
     if (this.disposed || this.terminal || this.negotiating || typeof RTCPeerConnection === 'undefined') return;
     this.negotiating = true;
-    // A delayed HTTP answer belongs to the peer and offer that requested it.
-    this.offer = null;
     this.nextRtcAttempt = Date.now() + 12_000;
     this.channel?.close();
-    this.stateChannel?.close();
     this.peer?.close();
     let peer: RTCPeerConnection;
     try { peer = new RTCPeerConnection(RTC_CONFIGURATION); } catch { this.negotiating = false; return; }
@@ -609,24 +565,13 @@ export class PartyController {
       if (this.disposed || this.peer !== peer) return;
       this.sendDirect();
     };
-    const receiveState = (event: MessageEvent) => {
-      if (this.disposed || this.peer !== peer || this.channel?.readyState !== 'open') return;
+    channel.onmessage = event => {
+      if (this.disposed || this.peer !== peer) return;
       const parsed = readPacket(event.data);
       if (isRecord(parsed) && parsed.type === 'state' && isPartyState(parsed.state)) this.receiveState(parsed.state, true);
     };
-    channel.onmessage = receiveState;
-    try {
-      const stateChannel = peer.createDataChannel('doodle-state', { ordered: false, maxRetransmits: 0 });
-      this.stateChannel = stateChannel;
-      stateChannel.onmessage = receiveState;
-      stateChannel.onerror = () => stateChannel.close();
-      stateChannel.onclose = () => {
-        if (!this.disposed && this.peer === peer && this.stateChannel === stateChannel) this.stateChannel = undefined;
-      };
-    } catch { this.stateChannel = undefined; }
     channel.onclose = () => {
       if (this.disposed || this.peer !== peer) return;
-      this.stateChannel?.close();
       this.setConnection(Date.now() - this.lastHostSeen < HOST_LEASE_MS ? 'relay' : 'disconnected');
       this.poll.wake();
     };
@@ -672,7 +617,6 @@ export class PartyController {
     window.removeEventListener('blur', this.blur);
     window.removeEventListener('pagehide', this.blur);
     this.channel?.close();
-    this.stateChannel?.close();
     this.peer?.close();
     this.api.close();
     void this.api.post({ action: 'player', code: this.code, token: this.token, packet }, true).catch(() => {});

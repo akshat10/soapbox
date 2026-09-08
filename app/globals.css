@@ -157,3 +157,228 @@ body {
 .doodle-derby:has(.is-landing) > .derby-canvas { display:none; }
 
 .derby-ui.phone-mode { display:block; font-size:14px; font-weight:400; letter-spacing:normal; }
+
+/* Solo Grand Prix: a miniature race club, with the player's ride centre stage. */
+:root { --race-ink:#103f38; --race-sun:#fbd95b; --race-glass:#f7f0e8ed; --race-sky:#bedfdc; }
+.solo-edition { display:flex; align-items:center; gap:8px; margin:0 0 15px; color:var(--vermilion); font-size:12px; font-weight:850; letter-spacing:1.8px; }
+.landing-multiplayer { display:flex; gap:22px; align-items:center; margin-top:20px; font-size:14px; font-weight:750; }
+.landing-multiplayer button,.landing-multiplayer a { display:inline-flex; align-items:center; gap:7px; min-height:44px; background:none; border:0; }
+.landing-multiplayer a { text-decoration:underline; text-underline-offset:4px; }
+.landing-footnote { font-size:12px; }
+.keyboard-link { font-size:13px; }
+.landing-copy>p { font-size:16px; }
+.landing-world::before { background:radial-gradient(circle at 35% 35%,#d2ebe0,#a4cec0); box-shadow:0 30px 70px #28584112; }
+.solo-mode.stage-garage:not(.is-landing) { background:linear-gradient(100deg,#f7f0dff5 0%,#f7f0dfb8 35%,transparent 62%); }
+.solo-garage { max-width:1500px; padding:0 4vw 24px; }
+.solo-garage .screen-heading { text-align:left; padding:5px 0 20px; }
+.solo-garage .screen-heading .text-button { font-size:14px; color:#345f55; padding:0; margin-bottom:8px; }
+.solo-garage .screen-heading h1 { font-size:clamp(30px,3vw,45px); letter-spacing:-1.7px; margin:0 0 8px; }
+.solo-garage .screen-heading p { font-size:14px; }
+.solo-garage .garage-layout { grid-template-columns:minmax(330px,410px) minmax(0,1fr); gap:4vw; }
+.solo-garage .garage-card { box-shadow:0 18px 65px #244c4015; border-color:#ffffffbb; background:#fffdf7ef; border-radius:24px; }
+.solo-garage .garage-card-title { padding:16px 20px; }
+.solo-garage .garage-card-title .eyebrow { font-size:12px; letter-spacing:1.2px; }
+.solo-garage .garage-card-title h2 { font-size:18px; }
+.solo-garage .family-label,.solo-garage .part-group legend { font-size:14px; }
+.solo-garage .body-option>span:first-of-type { font-size:13px; }
+.solo-garage .body-option { height:118px; background:white!important; transition:background 150ms,transform 150ms,border-color 150ms; }
+.solo-garage .body-option:hover { transform:translateY(-3px); }
+.solo-garage .body-option.is-selected { background:#e1efe5!important; box-shadow:0 4px 12px #163c3210!important; }
+.solo-garage .classics-toggle,.solo-garage .ride-note span,.solo-garage .tune-details summary,.solo-garage .garage-card-foot,.solo-garage .wheel-option>span { font-size:12px; }
+.solo-garage .wheel-option { height:87px; }
+.solo-garage .wheel-option>span { white-space:normal; text-align:center; line-height:1.15; }
+.solo-showroom { position:relative; min-height:490px; display:flex; flex-direction:column; justify-content:space-between; }
+.showroom-title { text-align:center; padding:4px 0; }
+.showroom-title .eyebrow { font-size:12px; letter-spacing:2px; color:#38675d; }
+.showroom-title h2 { font-family:Georgia,serif; font-weight:900; font-size:clamp(35px,4vw,64px); line-height:1; letter-spacing:-2.5px; margin:12px 0; }
+.showroom-title p { font-size:14px; color:#38675d; margin:0; }
+.solo-mobile-preview { display:none; }
+.solo-rivals { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); column-gap:10px; padding:18px; background:#f6fcf1ad; border:1px solid #ffffffc2; border-radius:19px; box-shadow:0 12px 40px #163c3208; backdrop-filter:blur(12px); }
+.rivals-heading { grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:11px; font-weight:800; letter-spacing:1px; padding-bottom:12px; border-bottom:1px solid #163c3218; margin-bottom:12px; }
+.rivals-heading>span:last-child { display:flex; align-items:center; gap:6px; }
+.rival-preview { position:relative; display:flex; align-items:center; gap:4px; min-width:0; }
+.rival-preview>.body-glyph { width:58px; height:60px; flex-shrink:0; }
+.rival-dot { position:absolute; width:5px; height:5px; border-radius:50%; left:2px; top:3px; }
+.rival-preview strong { display:block; font-size:12px; line-height:1.2; }
+.rival-preview div>span { display:block; font-size:12px; color:#527165; line-height:1.4; margin-top:4px; }
+.solo-garage .garage-footer { max-width:410px; padding-top:20px; gap:15px; flex-wrap:wrap; }
+.solo-garage .garage-footer>span:first-child { font-size:12px; letter-spacing:1px; }
+.solo-garage .garage-footer>.start-button { flex:1; font-size:22px!important; }
+.solo-garage .garage-footer>span:last-child { width:100%; text-align:center; font-weight:500; font-size:13px; color:#527165; }
+.solo-mode.stage-racing .derby-header,.solo-mode.stage-countdown .derby-header { background:linear-gradient(#f7f0dfbb,transparent); height:78px; padding:16px 30px; }
+.solo-mode .race-topline { top:18px; border-color:#fff9; box-shadow:0 6px 25px #163c3210; background:var(--race-glass); backdrop-filter:blur(12px); }
+.solo-mode .race-topline>span { font-size:12px; letter-spacing:1px; }
+.solo-mode .race-topline>strong { font-size:20px; }
+.solo-race-hud { position:absolute; inset:0; background:linear-gradient(0deg,#103f382b,transparent 27%); }
+.solo-position { position:absolute; top:105px; left:30px; color:var(--forest); }
+.solo-position>span,.hud-label { display:block; font-size:12px; letter-spacing:1.8px; font-weight:850; margin-bottom:6px; }
+.solo-position>strong { display:block; font-size:84px; letter-spacing:-6px; font-weight:900; line-height:1; text-shadow:0 2px 18px #fff9; font-variant-numeric:tabular-nums; }
+.solo-position>strong>small { font-size:26px; letter-spacing:-1px; margin-left:8px; color:#345f55; }
+.solo-position>div { display:flex; align-items:center; gap:7px; font-size:12px; font-weight:800; margin-top:12px; letter-spacing:.8px; }
+.solo-position .live-dot { background:var(--blue); }
+.solo-standings { position:absolute; right:30px; top:102px; width:226px; padding:16px; border:1px solid #fff9; background:#f7f0dfdb; backdrop-filter:blur(12px); border-radius:18px; box-shadow:0 10px 35px #163c3209; }
+.solo-standings>.hud-label { padding:0 4px 7px; }
+.solo-standings>div { display:flex; align-items:center; gap:8px; min-height:37px; padding:5px 7px; font-size:13px; border-radius:8px; }
+.solo-standings>div.is-you { background:#3254ee; color:white; }
+.solo-standings b { font-size:12px; width:10px; }
+.solo-standings i { width:6px; height:6px; border-radius:50%; }
+.solo-standings .is-you i { background:white!important; }
+.solo-standings span:not(.hud-label) { flex:1; font-weight:650; }
+.solo-standings small { font-size:10px; opacity:.75; }
+.solo-course { position:absolute; bottom:34px; left:30px; width:min(26vw,330px); }
+.solo-course>div:first-child { display:flex; justify-content:space-between; gap:8px; color:white; font-size:12px; font-weight:800; letter-spacing:1px; text-shadow:0 2px 8px #163c32; }
+.course-progress { position:relative; height:5px; border-radius:5px; margin-top:12px; background:#fff7; }
+.course-progress>span { position:absolute; inset:0 auto 0 0; background:var(--race-sun); border-radius:5px; }
+.course-progress i { position:absolute; top:-3px; width:10px; height:10px; border:2px solid white; border-radius:50%; transform:translateX(-50%); transition:left 70ms linear; }
+.solo-speed { position:absolute; right:34px; bottom:32px; display:flex; gap:10px; align-items:center; color:white; text-shadow:0 2px 10px #163c3277; }
+.solo-speed strong { font-size:49px; font-variant-numeric:tabular-nums; letter-spacing:-2px; line-height:1; }
+.solo-speed small { display:block; font-size:11px; letter-spacing:1px; text-align:center; margin-top:8px; }
+.solo-hop { position:absolute; bottom:24px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:12px; width:min(360px,80vw); }
+.solo-cue { padding:10px 18px; border-radius:30px; background:#103f38ed; color:var(--cream); font-size:12px; font-weight:850; text-align:center; box-shadow:0 5px 20px #163c3218; min-height:35px; }
+.solo-cue.charged { background:var(--race-sun); color:var(--forest); }
+.solo-hop .hop-control { width:100%; min-height:72px; background:var(--cream); color:var(--forest); border:2px solid #fff; box-shadow:0 5px 0 #133a30,0 12px 30px #163c3255; border-radius:20px; padding:14px 20px; }
+.solo-hop .hop-control strong { font-size:18px; letter-spacing:-.4px; }
+.solo-hop .hop-control kbd { padding:5px 7px; font-size:12px; border-color:#163c3240; }
+.solo-hop .hop-control>svg { display:block; }
+.solo-hop .charge-fill { background:var(--race-sun); }
+.solo-control-hint { font-size:12px; font-weight:650; color:white; text-shadow:0 2px 7px #163c32; }
+.solo-mode .countdown-overlay { background:#c9dfd018; backdrop-filter:blur(1px); }
+.solo-mode .countdown-overlay>strong { font:900 clamp(150px,24vw,260px)/1 Georgia,serif; letter-spacing:-10px; text-shadow:0 8px 0 #f7f0df,0 20px 60px #163c3230; }
+.solo-mode .countdown-overlay>span { font-size:13px; letter-spacing:3px; }
+.solo-mode .countdown-overlay>p { margin-top:25px; font-size:14px; }
+.solo-mode .results-backdrop { background:linear-gradient(125deg,#bdd9ced9,#f7f0dff0); backdrop-filter:blur(14px); }
+.solo-mode .results-card { background:#fffaf0ed; border:1px solid #fff; border-radius:28px; box-shadow:0 20px 100px #163c3220; padding:26px 32px; }
+.solo-mode .results-headline { margin:10px 0 15px; }
+.solo-mode .results-headline>svg { display:none; }
+.solo-mode .results-headline h1 { font-size:44px; }
+.solo-mode .eyebrow { font-size:12px; }
+.podium-spotlight { display:flex; justify-content:center; align-items:center; gap:18px; padding:5px 0 20px; }
+.podium-spotlight>.body-glyph { width:126px; height:96px; filter:drop-shadow(0 10px 10px #163c3220); }
+.podium-spotlight>span { font-weight:850; font-size:20px; text-align:left; }
+.podium-spotlight small { display:block; font-size:11px; letter-spacing:1.2px; color:#527165; margin-top:5px; }
+.solo-mode .result-player { background:transparent; min-height:66px; }
+.solo-mode .result-player.is-you { background:#e4eaff; border-color:#3254ee44; }
+.solo-mode .result-name strong { font-size:15px; }
+.solo-mode .result-name span { font-size:12px; }
+.driver-type { display:inline-block; margin-left:8px; font-size:10px; padding:3px 5px; border:1px solid #163c3230; border-radius:4px; vertical-align:middle; }
+.solo-mode .standing-score small { font-size:10px; }
+.solo-mode .results-footer { padding-top:20px; }
+@media(min-width:801px) and (max-height:800px) {
+ .solo-garage .screen-heading { padding-bottom:12px; }
+ .solo-garage .screen-heading h1 { font-size:32px; }
+ .solo-garage .garage-card-content { padding:12px 16px; }
+ .solo-garage .body-option { height:96px; }
+ .solo-garage .body-option .body-glyph { width:70px; height:56px; }
+ .solo-garage .wheel-option { height:74px; }
+ .solo-garage .garage-card-title { padding:12px 16px; }
+ .solo-garage .ride-note { padding:2px 0 10px; }
+ .solo-showroom { min-height:440px; }
+ .solo-mode .results-backdrop { padding-top:80px; }
+ .solo-mode .results-card { padding:20px 26px; }
+ .solo-mode .results-headline h1 { font-size:36px; }
+ .podium-spotlight>.body-glyph { width:95px; height:66px; }
+ .solo-mode .result-player { padding:6px 14px; }
+ .solo-mode .result-player>.body-glyph { width:62px; height:46px; }
+}
+@media(max-width:1050px) and (min-width:801px) { .rival-preview { flex-direction:column; text-align:center; } .rival-preview div>span { display:none; } .solo-garage .garage-layout { grid-template-columns:360px 1fr; gap:20px; } .showroom-title h2 { font-size:36px; } }
+@media(max-width:800px) {
+ .solo-mode.stage-garage:not(.is-landing) { background:var(--cream); }
+ .solo-garage { max-width:580px; padding:0 18px 24px; }
+ .solo-garage .screen-heading { text-align:center; }
+ .solo-garage .garage-layout { grid-template-columns:1fr; gap:18px; }
+ .solo-showroom { order:-1; min-height:0; }
+ .showroom-title h2 { font-size:34px; margin:10px 0; }
+ .showroom-title p { font-size:13px; }
+ .solo-mobile-preview { display:block; width:220px; height:180px; object-fit:contain; margin:5px auto; filter:drop-shadow(0 12px 12px #163c3218); }
+ .solo-rivals { padding:13px; }
+ .rival-preview { flex-direction:column; text-align:center; }
+ .rival-preview>.body-glyph { height:40px; width:50px; }
+ .rival-preview div>span { display:none; }
+ .rivals-heading { font-size:10px; }
+ .solo-garage .garage-footer { max-width:none; position:sticky; bottom:0; z-index:10; margin:18px -18px -24px; padding:16px 18px; background:var(--cream); box-shadow:0 -10px 25px #163c3209; flex-wrap:nowrap; }
+ .solo-garage .garage-footer>span:last-child { display:none; }
+ .solo-mode .race-topline { top:17px; gap:7px; padding:6px 10px; }
+ .solo-mode .race-topline>span { font-size:10px; letter-spacing:0; }
+ .solo-mode .race-topline>strong { font-size:16px; }
+ .solo-mode.stage-racing .derby-header,.solo-mode.stage-countdown .derby-header { padding:14px; }
+ .solo-position { top:90px; left:18px; }
+ .solo-position>strong { font-size:64px; }
+ .solo-position>div { font-size:10px; }
+ .solo-standings { right:16px; top:90px; width:184px; padding:10px; }
+ .solo-standings>div { font-size:12px; gap:5px; min-height:31px; padding:4px 5px; }
+ .solo-standings .hud-label { font-size:10px; margin:0; padding-bottom:5px; }
+ .solo-course { top:245px; left:18px; right:18px; bottom:auto; width:auto; }
+ .solo-course>div:first-child { color:var(--forest); text-shadow:0 1px 8px #fff; font-size:11px; }
+ .solo-speed { bottom:150px; right:20px; }
+ .solo-speed strong { font-size:36px; }
+ .solo-hop { bottom:max(22px,env(safe-area-inset-bottom)); width:min(360px,86vw); }
+ .solo-hop .hop-control strong { font-size:17px; }
+ .solo-hop .hop-control { min-height:67px; }
+ .solo-cue { font-size:11px; }
+ .solo-mode .results-backdrop { padding:90px 14px 25px; }
+ .solo-mode .results-card { padding:24px 16px; }
+ .solo-mode .results-headline h1 { font-size:36px; }
+ .solo-mode .result-name strong { font-size:13px; }
+ .solo-mode .result-name span { font-size:12px; }
+ .solo-mode .results-headline p { font-size:14px; }
+}
+@media(max-width:480px) {
+ .solo-mode.stage-racing .silicon-brand.compact,.solo-mode.stage-countdown .silicon-brand.compact { transform:scale(.6) rotate(-4deg); width:68px; }
+ .solo-mode .race-topline { left:47%; gap:4px; }
+ .solo-mode .race-topline .icon-button { width:25px; }
+ .solo-mode .race-topline>strong { font-size:14px; }
+ .solo-mode .race-topline>span { font-size:10px; }
+ .solo-mode .derby-header-actions { gap:3px; }
+ .solo-mode .results-headline h1 { font-size:32px; }
+ .podium-spotlight>span { font-size:17px; }
+}
+@media(max-height:540px) and (min-width:601px) {
+ .solo-position { top:82px; }
+ .solo-position>strong { font-size:54px; }
+ .solo-standings { top:80px; }
+ .solo-course { top:auto; bottom:22px; width:24vw; right:auto; }
+ .solo-speed { bottom:24px; }
+ .solo-hop { bottom:16px; }
+ .solo-mode .countdown-overlay>strong { font-size:130px; }
+}
+.solo-mobile-preview>.body-glyph { width:100%; height:100%; }
+@media(min-width:801px) { .solo-showroom { pointer-events:none; } }
+/* Two independent touch zones leave the chase view unobstructed. */
+.solo-steering { position:absolute; left:30px; bottom:100px; display:flex; gap:12px; }
+.solo-steering button { width:62px; height:58px; border:1px solid #fff9; border-radius:18px; display:grid; place-items:center; background:#f7f0dfdf; backdrop-filter:blur(8px); color:var(--forest); box-shadow:0 4px 0 #103f3888; touch-action:none; user-select:none; }
+.solo-steering button:active { background:var(--race-sun); transform:translateY(3px); box-shadow:0 1px 0 #103f3888; }
+@media(max-width:800px) { .solo-steering { left:18px; bottom:158px; gap:9px; } .solo-steering button { width:55px; height:52px; } }
+@media(max-height:540px) and (min-width:601px) { .solo-steering { bottom:75px; } .solo-steering button { width:50px; height:46px; } }
+/* Local Bay or Bust duel: independent steering and hop touch controls. */
+.local-garage-controls { display:flex; flex-wrap:wrap; align-items:center; gap:7px 16px; }
+.local-garage-controls>span { display:flex; align-items:center; gap:5px; }
+.local-keyboard-mode .garage-footer>.local-keyboard-summary { display:grid; gap:5px; font-size:11px; }
+.local-keyboard-summary kbd { min-width:21px; min-height:21px; font-size:10px; }
+.local-keyboard-mode .lane-bottom { width:100%; gap:9px; }
+.local-lane-controls { display:grid; grid-template-columns:52px minmax(0,1fr) 52px; align-items:stretch; gap:8px; width:min(450px,100%); }
+.local-lane-controls .hop-control { grid-column:2; grid-row:1; width:100%; padding:12px; gap:8px; }
+.local-steer-button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; min-width:44px; min-height:64px; border:2px solid var(--forest); border-radius:14px; background:#f7f0dfeb; color:var(--forest); box-shadow:0 4px 0 var(--forest); touch-action:none; user-select:none; -webkit-user-select:none; }
+.local-steer-button.steer-left { grid-column:1; grid-row:1; }
+.local-steer-button.steer-right { grid-column:3; grid-row:1; }
+.local-steer-button kbd { min-width:19px; min-height:17px; font-size:9px; border-color:#163c3240; }
+.local-steer-button:active { background:var(--player-color); color:white; transform:translateY(3px); box-shadow:0 1px 0 var(--forest); }
+.local-steer-button:disabled { opacity:.5; cursor:not-allowed; }
+.local-steer-button:focus-visible { outline:3px solid var(--race-sun); outline-offset:3px; }
+.local-lane-keyhint { color:var(--cream); background:#163c32d9; border-radius:8px; padding:5px 9px; font-size:10px; font-weight:750; letter-spacing:.1px; }
+@media(max-width:800px) {
+ .local-keyboard-mode .garage-footer { flex-wrap:wrap; }
+ .local-keyboard-mode .garage-footer>.local-keyboard-summary { width:100%; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; text-align:center; font-size:10px; }
+ .local-lane-controls { grid-template-columns:44px minmax(0,1fr) 44px; gap:5px; }
+ .local-lane-controls .hop-control { padding:10px 7px; gap:5px; }
+ .local-lane-controls .hop-control strong { font-size:12px; }
+ .local-lane-controls .hop-control>svg { display:none; }
+}
+@media(max-width:600px) {
+ .local-lane-controls { grid-template-columns:1fr 1fr; gap:7px; max-width:240px; }
+ .local-lane-controls .hop-control { grid-column:1/-1; grid-row:1; min-height:54px; }
+ .local-steer-button.steer-left { grid-column:1; grid-row:2; }
+ .local-steer-button.steer-right { grid-column:2; grid-row:2; }
+ .local-steer-button { flex-direction:row; min-height:44px; gap:7px; border-radius:10px; }
+ .local-lane-keyhint { font-size:8px; padding:4px 6px; white-space:nowrap; }
+ .local-keyboard-mode .garage-footer>.local-keyboard-summary { grid-template-columns:1fr; gap:5px; }
+}

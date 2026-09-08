@@ -1,23 +1,43 @@
 # Silicon Racer · Doodle Derby
 
-A playable 3D soapbox party game on a San Francisco-inspired downhill course. Two to four players race on their own phones while a shared computer/TV runs the simulation and shows every racer. A two-player keyboard mode is also available.
+A playable 3D soapbox racing game. The main mode is a solo Grand Prix against three local AI rivals on **Bay or Bust**, the authored San Francisco course. Arrow keys steer and Space/F controls charged hops. The release entry flow offers single player only. Legacy keyboard and phone multiplayer code is retained, with its entry points hidden.
 
 [Play Silicon Racer](https://doodle-derby-akshat.quiteparticular.chatgpt.site) · [Source repository](https://github.com/akshat10/soapbox)
 
-## Play
+## Solo Grand Prix
+
+Choose **Race solo**, build your racer, then choose **Let’s race**. No room, phone pairing, or model API is required.
+
+- **Left/right arrow keys** steer the front tires. Hold **Space** or **F** to charge; release to hop. Touch controls provide separate steering and hop buttons.
+- **Escape** or the pause button pauses. Leaving the local game window also pauses; choose Resume to continue. Restart resets the current heat.
+- Race Mission Control, Rent Controlled, and Toast Malone through three heats. Change your build between heats, then play again from the final podium.
+- The AI uses physical steering and the same hold/release input as you, evaluated at the 120 Hz physics cadence. It cannot change speed, position, progress, builds, or scoring.
+- Bay or Bust is a 431.54 m, single-path authored course through Lombard Gardens, Lantern Quarter, Golden Gate Leap, Mission Market, SoMa Circuit, and Pier Pressure. Its visible road and collider share the same path frames. Solo allows the full 90-second maximum even when a bot finishes first; it ends sooner when all racers finish.
+- The course features native neighborhood and bridge geometry, bay water, a coastal sky, textured asphalt and Victorian siding, fine foliage, decorative lantern/crowd animation, a full-screen chase camera, course progress, standings, and speed. Moving road furniture remains static until gameplay collision is implemented.
+- Three AI opponents have been checked headlessly on the entire course with identical outcomes at 30/60/120 Hz. All 15 chassis complete the course with scooter wheels and regular spacing in a repeatable driving check (14 without recovery; the arcade cabinet with one recovery). Precise steering and hop timing can win with the starter build. These repeatable checks do not replace manual playtesting on actual devices.
+
+## Legacy two-player keyboard race
+
+This mode is retained in code and hidden from the release entry flow. Both players race the same Bay or Bust road, bridge, neighborhoods, and waterfront as solo, each with a camera following their car.
+
+- Player 1: **A / D** to steer; hold **F** to charge, release to hop.
+- Player 2: **Left / right arrows** to steer; hold **J** to charge, release to hop.
+- Each side also has independent touch/mouse steering and hop controls.
+- Three heats, with build changes between them, standings, and a championship podium. Each heat allows up to 90 seconds, with a visible 12-second finish window after the leader finishes.
+- **Escape** pauses the shared race. Leaving the game window also pauses both players; choose Resume to continue.
+
+## Original phone course
 
 Choose an SF original (sourdough loaf, Mission burrito, or Victorian porch) or a classic household ride. Choose wheels and axle spacing within a ten-bolt budget.
 
-- Player 1: hold **F** to charge, release to hop.
-- Player 2: hold **J** to charge, release to hop.
-- Touch/mouse: hold and release the corresponding colored control.
+- Each phone: hold the thumb control to charge, release to hop.
 - Charge only builds while wheels are grounded. It caps after 0.8 seconds.
 - Gravity drives the vehicle. Lanes constrain sideways movement and steering; pitch, roll, suspension, jumps, collisions, and landings use a real 3D physics simulation.
 - At the Golden Gate gap, begin holding near the HOLD marking and release over the HOP marking before the edge.
 - After a tumble, the crew rights the car just behind the crash and restores its last measured safe momentum. A missed gap has a slower roll-through route. Holding the hop button through recovery keeps the gesture active; canceling still clears it.
 - Three heats, with build changes between them. Placements earn 5, 3, 2, and 1 points; ties share the points for the occupied places. Unfinished vehicles rank behind finishers by current valid course progress when the 60-second limit or the visible 12-second finish window after the leader expires.
 
-## Phone party
+## Legacy phone party (entry hidden)
 
 The published site is public. Anyone with its link can play; no sign-in is required.
 
@@ -27,7 +47,7 @@ The published site is public. Anyone with its link can play; no sign-in is requi
 4. Each phone shows its own live 3D chase view. Hold the thumb button to charge; release to hop. The big screen shows all racers for spectators.
 5. After a short podium, the next garage opens automatically. Ready up on the phones for the next heat, or for a rematch after the championship.
 
-Rooms support four phones and expire after two hours. Keep the shared screen open. A dropped controller pauses the simulation, and returning to the same phone tab restores its player slot. Ending a phone party returns to keyboard mode. Refreshing the shared screen requires a new room.
+Rooms support four phones and expire after two hours. Keep the shared screen open. A dropped controller pauses the simulation, and returning to the same phone tab restores its player slot. Ending a phone party returns to the previously selected local mode. Refreshing the shared screen requires a new room.
 
 The shared browser is authoritative for physics and outcomes. WebRTC sends inputs and full car/wheel poses directly when available (up to 30 updates per second). An HTTP relay provides a fallback, with ordered input sequence numbers preventing duplicate hops during handovers. Phones interpolate received poses, use a capped rendering resolution and omit expensive real-time shadows. Relay latency and actual device performance still need broader playtesting. Late joiners enter the next heat. The spectator screen must remain open and visible; this version does not run physics on a background server.
 
@@ -61,7 +81,7 @@ On machines with an incompatible globally installed libvips, install with `SHARP
 
 ## Current limits
 
-This is an early playable milestone. Short takeoff grace and landing-release buffering make timing more forgiving. The road follows simple contained lanes; Lombard is visual inspiration, not a geographically accurate winding driving route. There is no free steering, vehicle-to-vehicle collision, or detailed destruction. Phones have their own race views; the spectator browser remains the required race host.
+This is an early playable milestone. Short takeoff grace and landing-release buffering make timing more forgiving. Solo and two-player keyboard races use physical steering on the authored curved road. The phone course follows contained lanes with hop-only controls. The neighborhoods are SF-inspired rather than geographically accurate. There is no vehicle-to-vehicle collision or detailed destruction. Phones have their own race views; the spectator browser remains the required race host.
 
 Live Astra integration, validated accept/restore revisions, persistent build history, and deeper tuning remain for the next iteration. Local tips do not call a model. No API key is needed for this version.
 
@@ -69,7 +89,7 @@ The repeatable physics checks exercise control rules, recovery, lane fairness, a
 
 ## Code ownership
 
-`game/physics.ts` owns simulation, `game/track.ts` owns shared terrain geometry, `game/catalogue.ts` owns build definitions and validation, `game/visuals.ts` owns models and scenery, `game/renderer.ts` owns cameras/rendering, and `components/DoodleDerby.tsx` owns the session and input integration. `components/DerbyUI.tsx` provides the garage and race screens.
+`game/physics.ts` owns simulation, `game/track.ts` owns shared terrain geometry, `game/catalogue.ts` owns build definitions and validation, `game/visuals.ts` owns models and scenery, `game/renderer.ts` owns cameras/rendering, `game/course-scene.ts` loads the authored environment, `game/solo.ts` owns local opponents, and `components/DoodleDerby.tsx` owns the session and input integration. `components/DerbyUI.tsx` provides the garage and race screens.
 
 ## Project materials
 
@@ -86,3 +106,11 @@ Proposed features in the planning documents are not necessarily implemented. The
 Room API regression checks: `node --import tsx game/party-check.ts` (Node 24 recommended for the built-in SQLite test fixture).
 
 Four-player checks: `node --import tsx game/race-check.ts`, `node --import tsx game/party-input-check.ts`. These exercise four-lane fairness, sparse slots, tap handling, placements/ties, complete pose transmission, readiness across heats, and connection handovers.
+
+Solo checks: `node --import tsx game/solo-check.ts` covers the classic course AI baseline; `node --import tsx game/course-solo-check.ts` covers the authored course, physical AI steering, control isolation, normal scoring, frame-rate consistency, pause, and mode reset. `game/course-driving-check.ts` and `game/steering-check.ts` exercise the underlying authored road and steering system.
+
+Lantern Quarter regression: `node --import tsx game/course-recovery-check.ts` covers complete runs using binary arrow inputs, inside driving lines, loss of momentum, and rejection of physical relocations. Progress tracking allows for the sampled road's inside-corner projection seams while independently validating actual car movement.
+
+Direction and bridge checks: `node --import tsx game/steering-direction-check.ts` verifies real steering through a chase camera projection with keyboard/touch parity. `node --import tsx game/course-bridge-check.ts` loads the actual bridge asset and checks that its fitted spans meet, retain finite geometry, and clear the driving lane.
+
+Two-player keyboard checks: `node --import tsx game/local-race-check.ts` covers the shared course, separate steering/hop inputs, input clearing, mode resets, and heat timing.

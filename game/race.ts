@@ -42,10 +42,21 @@ export function heatPoints(snapshots: Standing[]): number[] {
   }
   return points;
 }
-export function raceCue(s: {progress: number; recovering: boolean; finished: boolean; grounded: boolean; charge: number}): string {
+export function raceCue(s: {progress: number; recovering: boolean; finished: boolean; grounded: boolean; charge: number; courseId?: 'bay-or-bust'; pathDistance?: number}): string {
   const z = s.progress * 260;
   if (s.finished) return 'ACROSS THE LINE!';
   if (s.recovering) return 'PIT CREW TO THE RESCUE';
+  if (s.courseId === 'bay-or-bust') {
+    const distance = s.pathDistance ?? 0;
+    if (distance > 156 && distance < 167.7) return s.charge > .85 ? 'BRIDGE AHEAD · READY TO RELEASE' : 'BRIDGE AHEAD · HOLD';
+    if (distance >= 167.7 && distance < 175) return s.grounded ? 'RELEASE · OVER THE BAY!' : 'FLYING OVER THE BAY';
+    if (distance > 384 && distance < 395.5) return 'PIER LAUNCH · CHARGE UP';
+    if (distance >= 395.5 && distance < 402) return s.grounded ? 'RELEASE · SEND IT!' : 'HOME STRETCH!';
+    if (distance > 412) return 'THE FINISH IS YOURS';
+    if (!s.grounded) return 'AIR TIME!';
+    if (s.charge > .98) return 'FULL CHARGE · RELEASE TO HOP';
+    return '← → STEER · HOLD SPACE TO CHARGE';
+  }
   if (z > 72 && z < 81.5) return s.charge > .85 ? 'GET READY TO RELEASE' : 'GAP AHEAD · HOLD';
   if (z >= 81.5 && z < 89) return s.grounded ? 'RELEASE! CLEAR THE GAP' : 'FLYING OVER THE BAY';
   if (z > 213 && z < 226) return 'FINAL JUMP · CHARGE UP';

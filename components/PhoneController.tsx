@@ -1,14 +1,12 @@
 'use client';
-/* oxlint-disable next/no-html-link-for-pages -- Native navigation avoids Vinext production export mismatch. */
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Flag, Gauge, Grid2X2, LoaderCircle, Radio, Smartphone, Trophy, Wifi, WifiOff, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { GarageCard } from '@/components/DerbyUI';
 import PhoneRaceView from '@/components/PhoneRaceView';
-import RaceDiagnostics from '@/components/RaceDiagnostics';
-import { raceDiagnostics as diag } from '@/game/race-diagnostics';
 import { SiliconBrand } from '@/components/SiliconBrand';
 import { PLAYER_COLORS, PLAYER_NAMES, raceCue, racePlace } from '@/game/race';
 import { BODIES, DEFAULT_BUILDS, getBody, isLegalBuild } from '@/game/catalogue';
@@ -38,7 +36,7 @@ function friendlyError(message: string) {
 }
 
 function PhoneLogo() {
-  return <a className="phone-logo" href="/" aria-label="Silicon Racer home"><SiliconBrand compact/></a>;
+  return <Link className="phone-logo" href="/" aria-label="Silicon Racer home"><SiliconBrand compact/></Link>;
 }
 
 export default function PhoneController() {
@@ -69,8 +67,6 @@ export default function PhoneController() {
   const [garageStep, setGarageStep] = useState<'ride' | 'parts'>('ride');
   const [browseRides, setBrowseRides] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
-  const [sharedScreen, setSharedScreen] = useState(false);
-  const viewReady = sharedScreen || sceneReady;
 
   useEffect(() => {
     // Garage scrolling must never carry into the fixed race viewport.
@@ -152,7 +148,6 @@ export default function PhoneController() {
             || next.scores.some((score, id) => score !== previous.scores[id]);
           if (immediate || now - lastHudUpdate.current >= 100) { lastHudUpdate.current = now; setRoom(next); }
           const own = controller.current?.playerId;
-          diag.phase(next.stage, next.heat, next.paused, !document.hidden, own != null && !!next.snapshots.find(item => item.id === own)?.finished);
           if (own == null) return;
           if (held.current && next.snapshots.some((item) => item.id === own && item.finished)) cancelHold();
           const serverBuild = next.builds[own];
@@ -252,13 +247,8 @@ export default function PhoneController() {
       if (isLegalBuild(next)) { changeBuild(next); return; }
     }
   }
-  function toggleRaceView() {
-    cancelHold();
-    setSceneReady(false);
-    setSharedScreen(current => !current);
-  }
   function toggleReady() {
-    if (!linked || (!ready && !viewReady) || !room || !stage || !['garage', 'results', 'final'].includes(stage) || !isLegalBuild(build)) return;
+    if (!linked || !sceneReady || !room || !stage || !['garage', 'results', 'final'].includes(stage) || !isLegalBuild(build)) return;
     const next = !ready;
     const readyHeat = stage === 'final' || stage === 'results' && room.heat === 3 ? 1 : stage === 'results' ? room.heat + 1 : room.heat;
     pendingReady.current = next;
@@ -302,15 +292,10 @@ export default function PhoneController() {
   const waitingForHeat = (stage === 'countdown' || stage === 'racing') && !takingPart;
   const statusText = !linked ? 'RECONNECTING' : room?.paused ? 'PIT STOP' : snapshot?.finished ? 'FINISHED!' : snapshot?.recovering ? 'RESETTING…' : pressed ? 'RELEASE TO HOP' : charge > 5 ? 'RELEASE TO HOP' : 'HOLD TO CHARGE';
 
-  return <main ref={surface} className={`phone-controller phone-player-${player} phone-stage-${waitingForHeat ? 'waiting' : stage || 'waiting'}${sharedScreen ? ' phone-shared-screen' : ''}`} style={{ '--player-color': COLORS[player] } as CSSProperties}>
-    <RaceDiagnostics viewRole="player"/>
-    {room && !sharedScreen && <PhoneRaceView state={room} stateSource={stateRef} player={player} onReady={setSceneReady}/>}
+  return <main ref={surface} className={`phone-controller phone-player-${player} phone-stage-${waitingForHeat ? 'waiting' : stage || 'waiting'}`} style={{ '--player-color': COLORS[player] } as CSSProperties}>
+    {room && <PhoneRaceView state={room} stateSource={stateRef} player={player} onReady={setSceneReady}/>}
     <div className="phone-shell">
       <header className="phone-header phone-connected-header"><PhoneLogo/><div className="phone-room-id"><span>ROOM</span><strong>{roomCode}</strong></div><Button variant="ghost" className="phone-leave" onClick={leave}>Leave</Button></header>
-      <div className="phone-view-controls">
-        <output>{sharedScreen ? 'Watch the shared screen' : 'Race view on this phone'}</output>
-        <Button type="button" variant="ghost" className="phone-view-toggle" onClick={toggleRaceView} title={sharedScreen ? 'Show the race on this phone' : 'Watch the race on the shared screen'}>{sharedScreen ? 'Show race view' : 'Use shared screen'}</Button>
-      </div>
       <div className="phone-identity"><span className="player-badge">P{player + 1}</span><div><span>YOU’RE DRIVING FOR</span><strong>{NAMES[player]}</strong></div><output className={`phone-connection ${linked ? 'is-linked' : ''}`}>{linked ? <Wifi size={15}/> : <WifiOff size={15}/>}<span>{linked ? 'CONNECTED' : 'RECONNECTING'}</span></output></div>
 
       {(!linked || room?.paused) && <output className="phone-network-note"><Radio size={18}/><span><strong>{!linked ? 'Finding the big screen…' : 'Race paused. A quick pit stop.'}</strong><span>{!linked ? 'Keep this page open. Controls will return when you reconnect.' : 'Reconnect the missing drivers and keep the shared screen open.'}</span></span></output>}
@@ -333,7 +318,7 @@ export default function PhoneController() {
         </fieldset>
         <footer className="phone-ready-footer">
           <div className="phone-ready-note"><span className={`phone-ready-dot ${ready ? 'is-ready' : ''}`}/><span>{ready ? allReady ? 'Everyone ready. Here we go!' : `You’re ready · ${readyCount} of ${racers.length} drivers ready` : opponents.some((id) => room?.ready[id]) ? 'Your rivals are ready. Your call.' : racers.length < 2 ? 'Invite a friend. Racing starts with two drivers.' : `${racers.length} drivers on the grid · Ready up to start` }</span>{score > 0 && <strong>{scoreLabel} PTS</strong>}</div>
-          {garageStep === 'ride' && !ready ? <Button className="phone-primary" disabled={!linked} onClick={() => { setGarageStep('parts'); setBrowseRides(false); }}>NEXT: WHEELS & STANCE <ArrowRight size={22}/></Button> : <Button className={`phone-primary ${ready ? 'phone-unready' : ''}`} disabled={!linked || (!ready && !viewReady) || !isLegalBuild(build)} onClick={toggleReady} aria-pressed={ready}>{!ready && !viewReady ? <><LoaderCircle className="phone-spinner" size={18}/> LOADING YOUR RACE…</> : ready ? <><Check size={20}/> READY! TAP TO TWEAK</> : <>READY TO ROLL <ArrowRight size={22}/></>}</Button>}
+          {garageStep === 'ride' && !ready ? <Button className="phone-primary" disabled={!linked} onClick={() => { setGarageStep('parts'); setBrowseRides(false); }}>NEXT: WHEELS & STANCE <ArrowRight size={22}/></Button> : <Button className={`phone-primary ${ready ? 'phone-unready' : ''}`} disabled={!linked || !sceneReady || !isLegalBuild(build)} onClick={toggleReady} aria-pressed={ready}>{!sceneReady ? <><LoaderCircle className="phone-spinner" size={18}/> LOADING YOUR RACE…</> : ready ? <><Check size={20}/> READY! TAP TO TWEAK</> : <>READY TO ROLL <ArrowRight size={22}/></>}</Button>}
           {garageStep === 'parts' && !ready && <Button variant="ghost" className="phone-back-to-rides" onClick={() => setGarageStep('ride')}><ArrowLeft size={12}/> Change ride</Button>}
         </footer>
       </>}
@@ -377,7 +362,7 @@ export default function PhoneController() {
         <div className="phone-results-score"><strong>{scoreLabel}</strong><span>POINTS<br/>TOTAL</span></div>
         <dl className="phone-results-stats"><div><dt>{snapshot?.finished ? 'FINISH TIME' : 'DISTANCE'}</dt><dd>{snapshot?.finished ? `${snapshot.finishTime?.toFixed(2) || '—'}s` : `${progress}%`}</dd></div><div><dt>HOPS</dt><dd>{snapshot?.jumps || 0}</dd></div><div><dt>RECOVERIES</dt><dd>{snapshot?.recoveries || 0}</dd></div></dl>
         <div className="phone-results-next"><Smartphone size={23}/><p><strong>{stage === 'final' ? 'Another round?' : room?.heat === 3 ? 'The podium is coming…' : 'Next heat. Same rivals.'}</strong><span>{stage === 'final' ? 'Ready up here for a rematch. Everyone keeps their ride.' : room?.heat === 3 ? 'Three heats are done. Your final standings appear here shortly.' : 'Your garage opens in a moment. Keep this ride or change your setup.'}</span></p></div>
-        {(stage === 'final' || (room?.heat || 1) < 3) && <Button className={`phone-primary phone-results-ready ${ready ? 'phone-unready' : ''}`} onClick={toggleReady} disabled={!linked || (!ready && !viewReady)} aria-pressed={ready}>{ready ? <><Check size={20}/> READY · WAITING FOR DRIVERS</> : <>{stage === 'final' ? 'READY FOR A REMATCH' : 'KEEP MY RIDE · READY'}<ArrowRight size={20}/></>}</Button>}
+        {(stage === 'final' || (room?.heat || 1) < 3) && <Button className={`phone-primary phone-results-ready ${ready ? 'phone-unready' : ''}`} onClick={toggleReady} disabled={!linked} aria-pressed={ready}>{ready ? <><Check size={20}/> READY · WAITING FOR DRIVERS</> : <>{stage === 'final' ? 'READY FOR A REMATCH' : 'KEEP MY RIDE · READY'}<ArrowRight size={20}/></>}</Button>}
       </section>}
     </div>
   </main>;

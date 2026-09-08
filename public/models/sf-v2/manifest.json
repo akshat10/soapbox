@@ -1,0 +1,29 @@
+{
+  "assets": {
+    "painted_porch": {
+      "sha256": "abbd730fc73f3b5d08e0e9e833f445d606fe5896d0443b74ac2f8adca156014f",
+      "bytes": 8448532,
+      "triangles": 29800,
+      "source": "asset-workshop/v2/assets/painted_porch/runtime-512/asset.glb"
+    },
+    "skate": {
+      "sha256": "70006970045847a22f7717de4f90a5d0b0419fe60f21b815278a4e0657121de6",
+      "bytes": 1807984,
+      "triangles": 9728,
+      "source": "asset-workshop/v2/assets/skate/runtime-512/asset.glb"
+    },
+    "scooter": {
+      "sha256": "bb1140fc9f94a0878db173d757eae015ffe9a92468976918a55d080481c81f88",
+      "bytes": 2092108,
+      "triangles": 9912,
+      "source": "asset-workshop/v2/assets/scooter/runtime-512/asset.glb"
+    },
+    "transit_disc": {
+      "sha256": "a04bd92ecd70e8e3c08ef3df5cd8ac659f59d02364aa92dedafab936e868617a",
+      "bytes": 1760956,
+      "triangles": 7440,
+      "source": "asset-workshop/v2/assets/transit_disc/runtime-512/asset.glb"
+    }
+  },
+  "source": "Editable full-resolution files remain in asset-workshop/v2/assets at the workspace root. Runtime textures are reduced only after visual comparison."
+}
