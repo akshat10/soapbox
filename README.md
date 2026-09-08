@@ -1,12 +1,12 @@
-# Doodle Derby
+# Silicon Racer · Doodle Derby
 
-A playable two-player 3D soapbox party game, set on a San Francisco-inspired downhill course. Play on one keyboard or use individual phone controllers with a shared race screen.
+A playable 3D soapbox party game on a San Francisco-inspired downhill course. Two to four players race on their own phones while a shared computer/TV runs the simulation and shows every racer. A two-player keyboard mode is also available.
 
-[Play Doodle Derby](https://doodle-derby-akshat.quiteparticular.chatgpt.site) · [Source repository](https://github.com/akshat10/soapbox)
+[Play Silicon Racer](https://doodle-derby-akshat.quiteparticular.chatgpt.site) · [Source repository](https://github.com/akshat10/soapbox)
 
 ## Play
 
-Choose one of 12 household vehicles, one of three wheel sets, and a wheelbase within a ten-bolt budget. Start the race together.
+Choose an SF original (sourdough loaf, Mission burrito, or Victorian porch) or a classic household ride. Choose wheels and axle spacing within a ten-bolt budget.
 
 - Player 1: hold **F** to charge, release to hop.
 - Player 2: hold **J** to charge, release to hop.
@@ -14,21 +14,22 @@ Choose one of 12 household vehicles, one of three wheel sets, and a wheelbase wi
 - Charge only builds while wheels are grounded. It caps after 0.8 seconds.
 - Gravity drives the vehicle. Lanes constrain sideways movement and steering; pitch, roll, suspension, jumps, collisions, and landings use a real 3D physics simulation.
 - At the Golden Gate gap, begin holding near the HOLD marking and release over the HOP marking before the edge.
-- Recoveries return to the last safe checkpoint, including its recorded forward velocity. Time continues; recovery never moves the vehicle ahead of that checkpoint.
-- Three heats, with build changes between them. A heat win earns 3 points, second earns 1; equal results earn 2 each. Unfinished vehicles rank behind finishers by current valid course progress at the 60-second timeout.
+- After a tumble, the crew rights the car just behind the crash and restores its last measured safe momentum. A missed gap has a slower roll-through route. Holding the hop button through recovery keeps the gesture active; canceling still clears it.
+- Three heats, with build changes between them. Placements earn 5, 3, 2, and 1 points; ties share the points for the occupied places. Unfinished vehicles rank behind finishers by current valid course progress when the 60-second limit or the visible 12-second finish window after the leader expires.
 
 ## Phone party
 
 The published site is public. Anyone with its link can play; no sign-in is required.
 
-1. Open the game on the shared computer/TV and choose **Play with phones**.
-2. Create a room. Each player scans its QR code, or opens `/play` and enters the six-character code.
-3. Pick parts on each phone and tap **Ready to roll**. Start the heat on the shared screen.
-4. Hold the large phone button to charge; release to hop. Race views and scoring stay on the shared screen.
+1. Open the game on the shared computer/TV and choose **Start**.
+2. Each player scans the room's QR code, or chooses **Join a race** on their phone and enters the six-character code.
+3. Pick parts on each phone and ready up. With at least two joined drivers, the race starts automatically once all joined drivers are ready.
+4. Each phone shows its own live 3D chase view. Hold the thumb button to charge; release to hop. The big screen shows all racers for spectators.
+5. After a short podium, the next garage opens automatically. Ready up on the phones for the next heat, or for a rematch after the championship.
 
-Rooms support two phones and expire after two hours. Keep the shared screen open. A dropped controller pauses the simulation, and returning to the same phone tab restores its player slot. Ending a phone party returns to keyboard mode. Refreshing the shared screen requires a new room.
+Rooms support four phones and expire after two hours. Keep the shared screen open. A dropped controller pauses the simulation, and returning to the same phone tab restores its player slot. Ending a phone party returns to keyboard mode. Refreshing the shared screen requires a new room.
 
-The shared browser is authoritative for physics and outcomes. WebRTC carries input directly when possible, with a server relay fallback when direct connectivity is unavailable. Relay controls can respond more slowly; real-device latency needs broader playtesting. Phones display individual garage, charge, progress and results without running a second 3D simulation.
+The shared browser is authoritative for physics and outcomes. WebRTC sends inputs and full car/wheel poses directly when available (up to 30 updates per second). An HTTP relay provides a fallback, with ordered input sequence numbers preventing duplicate hops during handovers. Phones interpolate received poses, use a capped rendering resolution and omit expensive real-time shadows. Relay latency and actual device performance still need broader playtesting. Late joiners enter the next heat. The spectator screen must remain open and visible; this version does not run physics on a background server.
 
 ## Run locally
 
@@ -51,8 +52,8 @@ On machines with an incompatible globally installed libvips, install with `SHARP
 
 ## Included in this first milestone
 
-- 12 recognizable 3D bodies across four handling families.
-- Three wheel types, constrained spacing, and a shared cost/legality catalogue.
+- Three authored SF chassis and twelve classic household rides.
+- Three authored SF wheel sets plus classic wheels, constrained spacing, and shared cost/legality validation.
 - Independent local controls and split cameras, countdown, finish/timeouts, three heats, standings, and rematch.
 - SF-inspired scenery: a Golden Gate bridge segment, Lombard-inspired flower and brick landscaping, Painted Ladies, Coit Tower, and Transamerica skyline.
 - Cannon rigid-body physics with raycast suspension, mass-aware spring hops, recoveries, and measured race events.
@@ -60,7 +61,7 @@ On machines with an incompatible globally installed libvips, install with `SHARP
 
 ## Current limits
 
-This is an early playable milestone. The road follows simple contained lanes; Lombard is visual inspiration, not a geographically accurate winding driving route. There is no free steering, independent remote race view, vehicle-to-vehicle collision, or detailed destruction. Phone-party mode uses one shared race screen.
+This is an early playable milestone. Short takeoff grace and landing-release buffering make timing more forgiving. The road follows simple contained lanes; Lombard is visual inspiration, not a geographically accurate winding driving route. There is no free steering, vehicle-to-vehicle collision, or detailed destruction. Phones have their own race views; the spectator browser remains the required race host.
 
 Live Astra integration, validated accept/restore revisions, persistent build history, and deeper tuning remain for the next iteration. Local tips do not call a model. No API key is needed for this version.
 
@@ -83,3 +84,5 @@ The repeatable physics checks exercise control rules, recovery, lane fairness, a
 Proposed features in the planning documents are not necessarily implemented. The current playable features and limitations are described above.
 
 Room API regression checks: `node --import tsx game/party-check.ts` (Node 24 recommended for the built-in SQLite test fixture).
+
+Four-player checks: `node --import tsx game/race-check.ts`, `node --import tsx game/party-input-check.ts`. These exercise four-lane fairness, sparse slots, tap handling, placements/ties, complete pose transmission, readiness across heats, and connection handovers.

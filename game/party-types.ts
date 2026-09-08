@@ -1,12 +1,16 @@
 import type { Blueprint, PlayerId, Stage, VehicleSnapshot } from '@/game/types';
 
+export const MAX_PARTY_PLAYERS = 4;
+
 export type InputKind = 'hold' | 'release' | 'cancel';
 export interface PartyInput { seq: number; kind: InputKind }
-export type PhoneSnapshot = Pick<VehicleSnapshot, 'id' | 'charge' | 'grounded' | 'recovering' | 'finished' | 'finishTime' | 'speed' | 'progress' | 'jumps' | 'recoveries'>;
+export type PhoneSnapshot = VehicleSnapshot;
 export interface PartyState {
+  revision?: number;
+  finishCountdown?: number | null;
   stage: Stage; builds: Blueprint[]; snapshots: PhoneSnapshot[];
   elapsed: number; countdown: number; heat: number; scores: number[];
-  ready: boolean[]; paused: boolean;
+  ready: boolean[]; paused: boolean; racerIds: PlayerId[];
 }
 export interface PartyPlayer {
   id: PlayerId; connected: boolean; build: Blueprint; ready: boolean; readyHeat: number;
@@ -40,4 +44,4 @@ export interface ControllerCallbacks {
 // party-client.ts exports createHostParty(callbacks, initialState): Promise<PartyHost>
 // PartyHost: code, expiresAt, publish(state), close(): Promise<void>, dispose(): void
 // and connectController(code, callbacks, token?): Promise<PartyController>
-// PartyController: code, playerId, token, build, setBuild(build), setReady(ready), input(kind), dispose()
+// PartyController: code, playerId, token, build, setBuild(build), setReady(ready, heat?), input(kind), dispose()

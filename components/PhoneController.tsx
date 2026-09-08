@@ -2,44 +2,50 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Check, Flag, LoaderCircle, Radio, Smartphone, Trophy, Wifi, WifiOff, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Flag, Gauge, Grid2X2, LoaderCircle, Radio, Smartphone, Trophy, Wifi, WifiOff, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { GarageCard } from '@/components/DerbyUI';
-import { DEFAULT_BUILDS, getBody, isLegalBuild } from '@/game/catalogue';
+import PhoneRaceView from '@/components/PhoneRaceView';
+import { SiliconBrand } from '@/components/SiliconBrand';
+import { PLAYER_COLORS, PLAYER_NAMES, raceCue, racePlace } from '@/game/race';
+import { BODIES, DEFAULT_BUILDS, getBody, isLegalBuild } from '@/game/catalogue';
 import { connectController } from '@/game/party-client';
 import type { PartyConnection, PartyState } from '@/game/party-types';
 import type { Blueprint, PlayerId } from '@/game/types';
 
 type Controller = Awaited<ReturnType<typeof connectController>>;
 type ScreenLock = { release: () => Promise<void>; released: boolean };
-const COLORS = ['#3254ee', '#f45a4e'];
-const NAMES = ['BLUE CREW', 'RED RIOT'];
+const COLORS = PLAYER_COLORS;
+const NAMES = PLAYER_NAMES;
 const cleanCode = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
 const roomFromURL = () => cleanCode(new URLSearchParams(window.location.search).get('room') || '');
 function subscribeURL(listener: () => void) { window.addEventListener('popstate', listener); return () => window.removeEventListener('popstate', listener); }
 const sameBuild = (a: Blueprint, b: Blueprint) => a.bodyId === b.bodyId && a.wheelId === b.wheelId && a.wheelbase === b.wheelbase;
 const percentage = (value?: number) => Math.round(Math.min(1, Math.max(0, value || 0)) * 100);
+function tapFeedback(duration = 10) { try { navigator.vibrate?.(duration); } catch { /* Haptics are optional. */ } }
 
 function tokenKey(code: string) { return `doodle-derby-controller:${code}`; }
 function storedToken(code: string) { try { return sessionStorage.getItem(tokenKey(code)) || undefined; } catch { return undefined; } }
 function rememberToken(code: string, token: string) { try { sessionStorage.setItem(tokenKey(code), token); } catch { /* Joining still works when storage is unavailable. */ } }
 function friendlyError(message: string) {
-  if (/full|two players|2 players|no.*slot/i.test(message)) return 'This derby already has two drivers. Ask the big screen to start a new room.';
+  if (/full|four players|4 players|no.*slot/i.test(message)) return 'This derby already has four drivers. Join the next derby or open another room.';
   if (/expired|not found|unknown room|no room|closed/i.test(message)) return 'That room has closed or expired. Enter the new code shown on the big screen.';
   if (/fetch|network|failed to connect/i.test(message)) return 'We couldn’t reach the derby. Check your connection and try again.';
   return message || 'Something interrupted the connection. Try joining again.';
 }
 
 function PhoneLogo() {
-  return <Link className="phone-logo" href="/" aria-label="Doodle Derby home"><span>DOODLE</span><strong>DERBY<span aria-hidden="true">✳</span></strong></Link>;
+  return <Link className="phone-logo" href="/" aria-label="Silicon Racer home"><SiliconBrand compact/></Link>;
 }
 
 export default function PhoneController() {
   const controller = useRef<Controller | null>(null);
+  const surface = useRef<HTMLElement | null>(null);
   const stateRef = useRef<PartyState | null>(null);
   const pendingBuild = useRef<Blueprint | null>(null);
   const pendingReady = useRef<boolean | null>(null);
+  const pendingReadyHeat = useRef(0);
   const attempt = useRef(0);
   const held = useRef(false);
   const pointer = useRef<number | null>(null);
@@ -57,12 +63,21 @@ export default function PhoneController() {
   const [joining, setJoining] = useState(false);
   const [pressed, setPressed] = useState(false);
   const [error, setError] = useState('');
+  const [garageStep, setGarageStep] = useState<'ride' | 'parts'>('ride');
+  const [browseRides, setBrowseRides] = useState(false);
+  const [sceneReady, setSceneReady] = useState(false);
+
+  useEffect(() => {
+    // Garage scrolling must never carry into the fixed race viewport.
+    if (surface.current) surface.current.scrollTop = 0;
+  }, [room?.stage, garageStep]);
 
   const cancelHold = useCallback(() => {
+    const wasHeld = held.current;
     held.current = false;
     pointer.current = null;
     setPressed(false);
-    controller.current?.input('cancel');
+    if (wasHeld) controller.current?.input('cancel');
   }, []);
 
   const keepAwake = useCallback(async () => {
@@ -112,6 +127,7 @@ export default function PhoneController() {
     setReadyDraft(null);
     setRoom(null);
     setPlayer(null);
+    setSceneReady(false);
     setJoining(true);
     setConnection('connecting');
     setError('');
@@ -119,7 +135,9 @@ export default function PhoneController() {
       const session = await connectController(nextCode, {
         onState: (next) => {
           if (attempt.current !== thisAttempt) return;
-          if (next.stage !== stateRef.current?.stage || next.paused) cancelHold();
+          const previous = stateRef.current;
+          if (next.stage !== previous?.stage || next.paused) cancelHold();
+          if (next.stage === 'garage' && previous?.stage !== 'garage') { setGarageStep('ride'); setBrowseRides(false); }
           stateRef.current = next;
           setRoom(next);
           const own = controller.current?.playerId;
@@ -130,12 +148,19 @@ export default function PhoneController() {
             pendingBuild.current = null;
             setBuild(serverBuild);
           }
-          if (pendingReady.current === next.ready[own] || next.stage !== 'garage') {
+          const readyHeat = next.stage === 'final' || next.stage === 'results' && next.heat === 3 ? 1 : next.stage === 'results' ? next.heat + 1 : next.heat;
+          if (pendingReadyHeat.current === readyHeat && pendingReady.current === next.ready[own] || (next.stage === 'countdown' || next.stage === 'racing') && next.racerIds.includes(own)) {
             pendingReady.current = null;
             setReadyDraft(null);
           }
         },
-        onConnection: (next) => { if (attempt.current === thisAttempt) { cancelHold(); setConnection(next); if (next === 'direct' || next === 'relay') setError(''); } },
+        onConnection: (next) => {
+          if (attempt.current !== thisAttempt) return;
+          // Switching between two working transports must preserve the driver's hold.
+          if (next === 'disconnected') cancelHold();
+          setConnection(next);
+          if (next === 'direct' || next === 'relay') setError('');
+        },
         onError: (message) => { if (attempt.current === thisAttempt) setError(friendlyError(message)); },
       }, storedToken(nextCode));
       if (attempt.current !== thisAttempt) { session.dispose(); return; }
@@ -178,14 +203,17 @@ export default function PhoneController() {
   const snapshot = player == null ? undefined : room?.snapshots.find((item) => item.id === player);
   const ready = readyDraft ?? (player != null && Boolean(room?.ready[player]));
   const score = player == null ? 0 : room?.scores[player] || 0;
+  const scoreLabel = Number(score.toFixed(2));
   const charge = percentage(snapshot?.charge);
   const progress = percentage(snapshot?.progress);
-  const canHold = linked && stage === 'racing' && !room?.paused && !snapshot?.finished;
+  const takingPart = player != null && Boolean(room?.racerIds.includes(player));
+  const canHold = linked && stage === 'racing' && takingPart && !room?.paused && !snapshot?.finished;
 
   function startHold() {
     if (!canHold || held.current) return;
     held.current = true;
     setPressed(true);
+    tapFeedback();
     controller.current?.input('hold');
     void keepAwake();
   }
@@ -195,36 +223,49 @@ export default function PhoneController() {
     pointer.current = null;
     setPressed(false);
     controller.current?.input('release');
+    tapFeedback(16);
   }
   function changeBuild(next: Blueprint) {
     if (!linked || ready || stage !== 'garage' || !isLegalBuild(next)) return;
     pendingBuild.current = next;
     setBuild(next);
     controller.current?.setBuild(next);
+    tapFeedback(8);
+  }
+  function cycleRide(direction: -1 | 1) {
+    const current = BODIES.findIndex((item) => item.id === build.bodyId);
+    for (let offset = 1; offset < BODIES.length; offset += 1) {
+      const body = BODIES[(current + direction * offset + BODIES.length) % BODIES.length];
+      const next = { ...build, bodyId: body.id };
+      if (isLegalBuild(next)) { changeBuild(next); return; }
+    }
   }
   function toggleReady() {
-    if (!linked || !room || stage !== 'garage' || !isLegalBuild(build)) return;
+    if (!linked || !sceneReady || !room || !stage || !['garage', 'results', 'final'].includes(stage) || !isLegalBuild(build)) return;
     const next = !ready;
+    const readyHeat = stage === 'final' || stage === 'results' && room.heat === 3 ? 1 : stage === 'results' ? room.heat + 1 : room.heat;
     pendingReady.current = next;
+    pendingReadyHeat.current = readyHeat;
     setReadyDraft(next);
-    controller.current?.setReady(next);
+    controller.current?.setReady(next, readyHeat);
+    tapFeedback(20);
     void keepAwake();
   }
 
-  if (player == null) return <main className="phone-controller phone-join">
+  if (player == null) return <main ref={surface} className="phone-controller phone-join">
     <div className="phone-shell">
-      <header className="phone-header"><PhoneLogo/><span className="phone-mode"><Smartphone size={14}/> PHONE CONTROLLER</span></header>
+      <header className="phone-header"><PhoneLogo/><span className="phone-mode"><Smartphone size={14}/> YOUR OWN RACE VIEW</span></header>
       <section className="phone-join-content">
         <div className="phone-art" aria-hidden="true"><span className="phone-art-burst">✳</span><div className="phone-art-device"><Smartphone strokeWidth={1.6}/><Zap className="phone-art-zap" fill="currentColor" strokeWidth={2.2}/></div><Flag className="phone-art-flag" size={54}/><span className="phone-art-star">✦</span></div>
         <span className="phone-eyebrow">SMALL SCREEN. BIG NONSENSE.</span>
         <h1>YOUR PHONE.<br/><span>YOUR RIDE.</span></h1>
-        <p>Build on your phone. Race on the big screen.<br/>One thumb. Absolutely no brakes.</p>
+        <p>Your own race view. Up to four friends.<br/>One thumb. Absolutely no brakes.</p>
         <form className="phone-join-form" onSubmit={join}>
           <label htmlFor="derby-room-code">ENTER THE CODE ON THE BIG SCREEN</label>
           <Input id="derby-room-code" value={code} onChange={(event) => setCode(cleanCode(event.target.value))} maxLength={6} placeholder="ABC123" autoComplete="off" autoCapitalize="characters" spellCheck={false} inputMode="text" disabled={joining} aria-describedby={error ? 'phone-join-error' : 'phone-code-help'}/>
-          <Button className="phone-primary" type="submit" disabled={code.length !== 6 || joining}>{joining ? <><LoaderCircle className="phone-spinner" size={20}/> FINDING YOUR RIDE…</> : <>JOIN THE DERBY <ArrowRight size={23}/></>}</Button>
+          <Button className="phone-primary" type="submit" disabled={code.length !== 6 || joining}>{joining ? <><LoaderCircle className="phone-spinner" size={20}/> FINDING YOUR RIDE…</> : <>Join the race <ArrowRight size={23}/></>}</Button>
           {error && <p id="phone-join-error" className="phone-error" role="alert">{error}</p>}
-          <small id="phone-code-help">Open Doodle Derby on a computer or TV<br/>and choose phone controllers to get a code.</small>
+          <small id="phone-code-help">Open Silicon Racer on the shared screen<br/>and choose Start to get a code.</small>
         </form>
       </section>
       <footer className="phone-join-footer"><span className="mini-checker"/> SAN FRANCISCO’S MOST QUESTIONABLE GRAND PRIX</footer>
@@ -232,67 +273,89 @@ export default function PhoneController() {
   </main>;
 
   const isResults = stage === 'results' || stage === 'final';
-  const opponent = player === 0 ? 1 : 0;
-  const tied = room?.scores[player] === room?.scores[opponent];
-  const champion = !tied && score > (room?.scores[opponent] || 0);
-  const statusText = !linked ? 'RECONNECTING…' : room?.paused ? 'RACE PAUSED' : snapshot?.finished ? 'NICELY DONE!' : snapshot?.recovering ? 'BACK ON YOUR WHEELS…' : !snapshot?.grounded ? 'AIR TIME!' : pressed || charge > 5 ? 'RELEASE TO HOP!' : 'HOLD TO CHARGE';
+  const racers = room?.racerIds || [];
+  const opponents = racers.filter((id) => id !== player);
+  const allReady = racers.length >= 2 && racers.every((id) => room?.ready[id]);
+  const readyCount = racers.filter((id) => room?.ready[id]).length;
+  const topScore = Math.max(0, ...racers.map((id) => room?.scores[id] || 0));
+  const tied = score === topScore && racers.filter((id) => room?.scores[id] === topScore).length > 1;
+  const champion = score === topScore && !tied;
+  const position = stage === 'countdown' || !snapshot ? '—' : String(racePlace(snapshot, room?.snapshots || []));
+  const positionSuffix = position === '1' ? 'ST' : position === '2' ? 'ND' : position === '3' ? 'RD' : position === '4' ? 'TH' : '';
+  const waitingForHeat = (stage === 'countdown' || stage === 'racing') && !takingPart;
+  const statusText = !linked ? 'RECONNECTING' : room?.paused ? 'PIT STOP' : snapshot?.finished ? 'FINISHED!' : snapshot?.recovering ? 'RESETTING…' : pressed ? 'RELEASE TO HOP' : charge > 5 ? 'RELEASE TO HOP' : 'HOLD TO CHARGE';
 
-  return <main className={`phone-controller phone-player-${player} phone-stage-${stage || 'waiting'}`} style={{ '--player-color': COLORS[player] } as CSSProperties}>
+  return <main ref={surface} className={`phone-controller phone-player-${player} phone-stage-${waitingForHeat ? 'waiting' : stage || 'waiting'}`} style={{ '--player-color': COLORS[player] } as CSSProperties}>
+    {room && <PhoneRaceView state={room} player={player} onReady={setSceneReady}/>}
     <div className="phone-shell">
       <header className="phone-header phone-connected-header"><PhoneLogo/><div className="phone-room-id"><span>ROOM</span><strong>{roomCode}</strong></div><Button variant="ghost" className="phone-leave" onClick={leave}>Leave</Button></header>
       <div className="phone-identity"><span className="player-badge">P{player + 1}</span><div><span>YOU’RE DRIVING FOR</span><strong>{NAMES[player]}</strong></div><output className={`phone-connection ${linked ? 'is-linked' : ''}`}>{linked ? <Wifi size={15}/> : <WifiOff size={15}/>}<span>{linked ? 'CONNECTED' : 'RECONNECTING'}</span></output></div>
 
-      {(!linked || room?.paused) && <output className="phone-network-note"><Radio size={18}/><span><strong>{!linked ? 'Finding the big screen…' : 'Race paused. A quick pit stop.'}</strong><span>{!linked ? 'Keep this page open. Controls will return when you reconnect.' : 'Reconnect both phones and keep the race screen open.'}</span></span></output>}
+      {(!linked || room?.paused) && <output className="phone-network-note"><Radio size={18}/><span><strong>{!linked ? 'Finding the big screen…' : 'Race paused. A quick pit stop.'}</strong><span>{!linked ? 'Keep this page open. Controls will return when you reconnect.' : 'Reconnect the missing drivers and keep the shared screen open.'}</span></span></output>}
       {error && <aside className="phone-error phone-session-error" role="alert"><p>{error}</p><Button variant="ghost" onClick={() => { leave(); }}>Back to room code <ArrowRight size={15}/></Button></aside>}
 
       {!room && <section className="phone-waiting"><LoaderCircle className="phone-spinner" size={34}/><h1>YOU’RE IN.</h1><p>Waiting for the big screen to send your garage…</p></section>}
 
       {stage === 'garage' && <>
-        <section className="phone-garage-intro"><span className="phone-eyebrow">HEAT {room?.heat || 1} OF 3 <span>•</span> YOUR PERSONAL PIT</span><h1>MAKE IT QUESTIONABLE.</h1><p>Pick your parts. Your ride updates on the big screen.</p></section>
-        <fieldset className={`phone-garage-fieldset ${ready ? 'is-ready' : ''}`} disabled={ready || !linked} aria-label="Your vehicle parts">
+        <section className="phone-garage-intro"><span className="phone-eyebrow">HEAT {room?.heat || 1} OF 3 <span>•</span> YOUR PERSONAL PIT</span><h1>{ready ? 'ON THE STARTING GRID.' : garageStep === 'ride' ? 'PICK YOUR RIDICULOUS.' : 'MAKE IT YOURS.'}</h1><p>{ready ? 'Race starts here when every driver is ready.' : garageStep === 'ride' ? 'Find your favorite. Four wheels. Zero dignity.' : 'Bigger wheels for bumps. Wider spacing for landings.'}</p></section>
+        <nav className="phone-garage-steps" aria-label="Build your ride">
+          <Button variant="ghost" className={garageStep === 'ride' ? 'is-current' : ''} onClick={() => setGarageStep('ride')} aria-current={garageStep === 'ride' ? 'step' : undefined}><span>01</span> RIDE {garageStep === 'parts' && <Check size={14}/>}</Button>
+          <Button variant="ghost" className={garageStep === 'parts' ? 'is-current' : ''} onClick={() => setGarageStep('parts')} aria-current={garageStep === 'parts' ? 'step' : undefined}><span>02</span> PARTS</Button>
+        </nav>
+        <fieldset className={`phone-garage-fieldset phone-build-${garageStep} ${browseRides ? 'is-browsing' : ''} ${ready ? 'is-ready' : ''}`} disabled={ready || !linked} aria-label="Your vehicle parts">
           <GarageCard player={player} build={build} onChange={changeBuild}/>
+          {garageStep === 'ride' && <div className="phone-ride-navigation">
+            {!browseRides && <><Button variant="outline" aria-label="Previous ride" onClick={() => cycleRide(-1)}><ChevronLeft size={23}/></Button><span><strong>{BODIES.findIndex((item) => item.id === build.bodyId) + 1}</strong> / {BODIES.length} RIDES</span><Button variant="outline" aria-label="Next ride" onClick={() => cycleRide(1)}><ChevronRight size={23}/></Button></>}
+            <Button variant="ghost" className="phone-browse-rides" onClick={() => setBrowseRides(!browseRides)} aria-expanded={browseRides}><Grid2X2 size={14}/>{browseRides ? 'FOCUS ON MY RIDE' : 'BROWSE RIDES'}</Button>
+          </div>}
         </fieldset>
         <footer className="phone-ready-footer">
-          <div className="phone-ready-note"><span className={`phone-ready-dot ${ready ? 'is-ready' : ''}`}/><span>{ready ? room?.ready[opponent] ? 'Both drivers ready. Look at the big screen!' : 'You’re ready. Waiting for the other driver…' : '10 bolts. One very bad idea.'}</span>{score > 0 && <strong>{score} PTS</strong>}</div>
-          <Button className={`phone-primary ${ready ? 'phone-unready' : ''}`} disabled={!linked || !isLegalBuild(build)} onClick={toggleReady} aria-pressed={ready}>{ready ? <><Check size={20}/> READY! TAP TO TWEAK</> : <>READY TO ROLL <ArrowRight size={22}/></>}</Button>
+          <div className="phone-ready-note"><span className={`phone-ready-dot ${ready ? 'is-ready' : ''}`}/><span>{ready ? allReady ? 'Everyone ready. Here we go!' : `You’re ready · ${readyCount} of ${racers.length} drivers ready` : opponents.some((id) => room?.ready[id]) ? 'Your rivals are ready. Your call.' : racers.length < 2 ? 'Invite a friend. Racing starts with two drivers.' : `${racers.length} drivers on the grid · Ready up to start` }</span>{score > 0 && <strong>{scoreLabel} PTS</strong>}</div>
+          {garageStep === 'ride' && !ready ? <Button className="phone-primary" disabled={!linked} onClick={() => { setGarageStep('parts'); setBrowseRides(false); }}>NEXT: WHEELS & STANCE <ArrowRight size={22}/></Button> : <Button className={`phone-primary ${ready ? 'phone-unready' : ''}`} disabled={!linked || !sceneReady || !isLegalBuild(build)} onClick={toggleReady} aria-pressed={ready}>{!sceneReady ? <><LoaderCircle className="phone-spinner" size={18}/> LOADING YOUR RACE…</> : ready ? <><Check size={20}/> READY! TAP TO TWEAK</> : <>READY TO ROLL <ArrowRight size={22}/></>}</Button>}
+          {garageStep === 'parts' && !ready && <Button variant="ghost" className="phone-back-to-rides" onClick={() => setGarageStep('ride')}><ArrowLeft size={12}/> Change ride</Button>}
         </footer>
       </>}
 
-      {(stage === 'racing' || stage === 'countdown') && <section className="phone-race-content">
-        <div className="phone-race-heading"><span className="phone-eyebrow">HEAT {room?.heat || 1} <span>/ 3</span></span><span className="phone-score"><strong>{score}</strong> PTS</span></div>
-        <div className="phone-race-copy"><span className="phone-eyebrow">{stage === 'countdown' ? 'GET YOUR THUMB READY' : 'EYES ON THE BIG SCREEN'}</span><h1>{stage === 'countdown' ? 'LET’S ROLL.' : 'SEND IT.'}</h1><p>{getBody(build.bodyId).name}</p></div>
-        <div className="phone-progress-label"><span><Flag size={14}/> YOUR RACE</span><strong>{progress}%</strong></div>
-        <progress className="phone-race-progress" value={progress} max={100} aria-label="Your course progress"/>
-        <div className="phone-charge-label"><span>HOP CHARGE</span><strong>{charge}%</strong></div>
-        <progress className="phone-charge-track" aria-label="Hop charge" value={charge} max={100}/>
-        <button type="button" className={`phone-hop-button ${pressed ? 'is-pressed' : ''} ${snapshot?.finished ? 'is-finished' : ''}`} disabled={!canHold} aria-label="Hold to charge. Release to hop." aria-pressed={pressed}
+      {waitingForHeat && <section className="phone-waiting phone-next-heat"><Flag size={48}/><span className="phone-eyebrow">YOU’RE IN, P{player + 1}</span><h1>NEXT RACE.<br/>YOUR MOMENT.</h1><p>Heat {room?.heat} is already underway. Your garage opens here as soon as it’s over.</p><span className="phone-waiting-pill">{NAMES[player]} · JOINED</span></section>}
+
+      {(stage === 'racing' || stage === 'countdown') && takingPart && <section className="phone-race-content" aria-label="Race controller">
+        <div className="phone-race-dashboard">
+          <div className={`phone-race-position ${position === '1' ? 'is-leading' : ''}`}><strong>{position}<small>{positionSuffix}</small></strong><span>{snapshot?.finished ? 'FINISH POSITION' : `OF ${racers.length} DRIVERS`}</span></div>
+          <div className="phone-race-dashboard-info"><div className="phone-race-heading"><span className="phone-eyebrow">HEAT {room?.heat || 1} <span>/ 3</span></span><span className="phone-score"><strong>{scoreLabel}</strong> PTS</span></div><h1>{getBody(build.bodyId).name}</h1><div className="phone-live-speed"><Gauge size={15}/><strong>{Math.round((snapshot?.speed || 0) * 3.6)}</strong><span>KM/H</span><span className="phone-race-state">{snapshot?.finished ? 'FINISHED' : snapshot?.recovering ? 'RECOVERING' : stage === 'countdown' ? 'ON THE GRID' : snapshot?.grounded ? 'ON THE HILL' : 'AIRBORNE'}</span></div></div>
+        </div>
+        <div className="phone-race-route"><div className="phone-progress-label"><span><Flag size={12}/> TO THE BAY</span><strong>{progress}%</strong></div><progress className="phone-race-progress" value={progress} max={100} aria-label="Your course progress"/>{room?.finishCountdown != null && !snapshot?.finished && <output className="phone-finish-countdown"><Flag size={13}/><span>FINISH IN</span><strong>{Math.ceil(room.finishCountdown)}<small>s</small></strong></output>}</div>
+        <div className="phone-charge-meter"><div className="phone-charge-label"><span>{stage === 'countdown' ? 'GET YOUR THUMB READY' : 'HOP POWER'}</span><strong>{charge}%</strong></div><progress className="phone-charge-track" aria-label="Hop charge" value={charge} max={100}/></div>
+        <button type="button" className={`phone-hop-button ${pressed ? 'is-pressed' : ''} ${charge >= 95 ? 'is-full-charge' : ''} ${snapshot?.finished ? 'is-finished' : ''}`} disabled={!canHold} aria-label="Hold to charge. Release to hop." aria-pressed={pressed}
           onPointerDown={(event) => { if (!canHold || pointer.current !== null || held.current) return; event.preventDefault(); pointer.current = event.pointerId; event.currentTarget.setPointerCapture(event.pointerId); startHold(); }}
           onPointerUp={(event) => { if (pointer.current !== event.pointerId) return; event.preventDefault(); releaseHold(); }}
-          onPointerCancel={cancelHold}
-          onLostPointerCapture={() => { if (held.current) cancelHold(); }}
+          onPointerCancel={(event) => { if (pointer.current === event.pointerId) cancelHold(); }}
+          onLostPointerCapture={(event) => { if (held.current && pointer.current === event.pointerId) cancelHold(); }}
           onContextMenu={(event) => event.preventDefault()}
           onKeyDown={(event) => { if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) { event.preventDefault(); startHold(); } }}
           onKeyUp={(event) => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); releaseHold(); } }}
           onBlur={cancelHold}
         >
           <span className="phone-hop-fill" style={{ transform: `scaleY(${charge / 100})` }}/>
+          <span className="phone-hop-rings" aria-hidden="true"/>
           <span className="phone-hop-content">
-            {stage === 'countdown' ? <strong className="phone-countdown" aria-live="assertive">{room?.countdown ? Math.ceil(room.countdown) : 'GO!'}</strong> : snapshot?.finished ? <Flag size={67} strokeWidth={2.4}/> : <Zap className="phone-hop-bolt" size={80} fill="currentColor" strokeWidth={1.5}/>}
+            <span className="phone-hop-prompt">{stage === 'countdown' ? 'THE HILL IS YOURS' : 'YOUR HOP BUTTON'}</span>
+            {stage === 'countdown' ? <strong className="phone-countdown" aria-live="assertive">{room?.countdown ? Math.ceil(room.countdown) : 'GO!'}</strong> : snapshot?.finished ? <Flag className="phone-hop-bolt" size={76} strokeWidth={2.4}/> : <Zap className="phone-hop-bolt" size={96} fill="currentColor" strokeWidth={1.5}/>}
             <strong>{stage === 'countdown' ? 'WAIT FOR GO…' : statusText}</strong>
-            <small>{stage === 'countdown' ? 'Then hold. Release to hop.' : snapshot?.finished ? 'Watch the finish on the big screen.' : room?.paused || !linked ? 'Your thumb can take a breather.' : pressed ? 'Bigger charge. Bigger hop.' : 'Press and hold anywhere here.'}</small>
+            <small>{stage === 'countdown' ? 'One button. All the glory.' : snapshot?.finished ? 'Let’s see how everyone finishes.' : room?.paused || !linked ? 'Controls return when everyone reconnects.' : snapshot?.recovering ? 'Your crew is getting you moving.' : pressed ? snapshot?.grounded ? 'Lift your thumb to send it.' : 'Charge starts when your wheels land.' : 'Hold on the ground. Let go before the jump.'}</small>
           </span>
         </button>
-        <p className="phone-race-footnote">{snapshot?.recovering ? 'Your crew is putting you back on the hill.' : snapshot?.finished ? `${snapshot.finishTime?.toFixed(2) || '—'} seconds of excellent nonsense.` : 'Charge on the ground. Release just before a jump.'}</p>
+        <p className="phone-race-footnote">{snapshot?.finished ? `${snapshot.finishTime?.toFixed(2) || '—'}s · ${snapshot.jumps} hops · Nice driving.` : snapshot ? raceCue(snapshot) : 'HOLD → CHARGE · RELEASE → HOP'}</p>
       </section>}
 
       {isResults && <section className="phone-results-content">
         <div className="phone-results-stamp" aria-hidden="true">{stage === 'final' ? <Trophy size={59} strokeWidth={1.9}/> : <Flag size={55} strokeWidth={2}/>}</div>
         <span className="phone-eyebrow">{stage === 'final' ? 'THREE HEATS. MAXIMUM NONSENSE.' : `HEAT ${room?.heat || 1} COMPLETE`}</span>
-        <h1>{stage === 'final' ? tied ? 'DOUBLE TROUBLE!' : champion ? 'YOU’RE THE CHAMP!' : 'WHAT A DERBY.' : snapshot?.finished ? 'YOU SENT IT.' : 'WHAT A RIDE.'}</h1>
-        <p>{stage === 'final' ? tied ? 'Two equally questionable champions.' : champion ? 'The bragging rights are yours.' : 'A questionable machine. A very good time.' : getBody(build.bodyId).name}</p>
-        <div className="phone-results-score"><strong>{score}</strong><span>POINTS<br/>TOTAL</span></div>
+        <h1>{stage === 'final' ? tied ? 'SHARED GLORY!' : champion ? 'YOU’RE THE CHAMP!' : 'WHAT A RIDE.' : !takingPart ? 'YOUR TURN IS NEXT.' : snapshot?.finished ? 'YOU SENT IT.' : 'WHAT A RIDE.'}</h1>
+        <p>{stage === 'final' ? tied ? 'Equally questionable champions.' : champion ? 'The bragging rights are yours.' : 'A questionable machine. A very good time.' : getBody(build.bodyId).name}</p>
+        <div className="phone-results-score"><strong>{scoreLabel}</strong><span>POINTS<br/>TOTAL</span></div>
         <dl className="phone-results-stats"><div><dt>{snapshot?.finished ? 'FINISH TIME' : 'DISTANCE'}</dt><dd>{snapshot?.finished ? `${snapshot.finishTime?.toFixed(2) || '—'}s` : `${progress}%`}</dd></div><div><dt>HOPS</dt><dd>{snapshot?.jumps || 0}</dd></div><div><dt>RECOVERIES</dt><dd>{snapshot?.recoveries || 0}</dd></div></dl>
-        <div className="phone-results-next"><Smartphone size={23}/><p><strong>Stay right here.</strong><span>{stage === 'final' ? 'Start another derby on the big screen. Your controller is ready for a rematch.' : room?.heat === 3 ? 'The final standings are coming on the big screen.' : 'Continue on the big screen. Your garage will open here for the next heat.'}</span></p></div>
+        <div className="phone-results-next"><Smartphone size={23}/><p><strong>{stage === 'final' ? 'Another round?' : room?.heat === 3 ? 'The podium is coming…' : 'Next heat. Same rivals.'}</strong><span>{stage === 'final' ? 'Ready up here for a rematch. Everyone keeps their ride.' : room?.heat === 3 ? 'Three heats are done. Your final standings appear here shortly.' : 'Your garage opens in a moment. Keep this ride or change your setup.'}</span></p></div>
+        {(stage === 'final' || (room?.heat || 1) < 3) && <Button className={`phone-primary phone-results-ready ${ready ? 'phone-unready' : ''}`} onClick={toggleReady} disabled={!linked} aria-pressed={ready}>{ready ? <><Check size={20}/> READY · WAITING FOR DRIVERS</> : <>{stage === 'final' ? 'READY FOR A REMATCH' : 'KEEP MY RIDE · READY'}<ArrowRight size={20}/></>}</Button>}
       </section>}
     </div>
   </main>;

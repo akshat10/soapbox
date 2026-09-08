@@ -1,0 +1,168 @@
+{
+  "sourdough": {
+    "size": [
+      1.8,
+      1.25,
+      2.5
+    ],
+    "driverSeat": [
+      0,
+      0.22,
+      -0.25
+    ],
+    "gadgetMount": [
+      0,
+      0.2,
+      -1.0
+    ],
+    "file": "sourdough.glb",
+    "bytes": 279928,
+    "triangles": 11104,
+    "meshBatches": 8,
+    "materialBatches": 9,
+    "bounds": [
+      [
+        -0.8999999761581421,
+        -0.625,
+        -1.25
+      ],
+      [
+        0.8999999761581421,
+        0.6159999966621399,
+        1.25
+      ]
+    ]
+  },
+  "mission_burrito": {
+    "size": [
+      1.7,
+      1.05,
+      3.5
+    ],
+    "driverSeat": [
+      0,
+      0.22,
+      -0.25
+    ],
+    "gadgetMount": [
+      0,
+      0.15,
+      -1.4
+    ],
+    "file": "mission_burrito.glb",
+    "bytes": 256072,
+    "triangles": 8504,
+    "meshBatches": 8,
+    "materialBatches": 8,
+    "bounds": [
+      [
+        -0.8445000052452087,
+        -0.5249999761581421,
+        -1.7300000190734863
+      ],
+      [
+        0.8445000052452087,
+        0.45900002121925354,
+        1.7445000410079956
+      ]
+    ]
+  },
+  "painted_porch": {
+    "size": [
+      2.2,
+      2.3,
+      2.9
+    ],
+    "driverSeat": [
+      0,
+      -0.63,
+      -0.18
+    ],
+    "gadgetMount": [
+      0,
+      -0.65,
+      -1.2
+    ],
+    "file": "painted_porch.glb",
+    "bytes": 477816,
+    "triangles": 15028,
+    "meshBatches": 6,
+    "materialBatches": 6,
+    "bounds": [
+      [
+        -1.1050000190734863,
+        -1.1399999856948853,
+        -1.4479999542236328
+      ],
+      [
+        1.1050000190734863,
+        1.1489999294281006,
+        1.4299999475479126
+      ]
+    ]
+  },
+  "skate": {
+    "radius": 0.33,
+    "width": 0.24,
+    "file": "skate.glb",
+    "bytes": 154724,
+    "triangles": 6380,
+    "meshBatches": 6,
+    "materialBatches": 6,
+    "bounds": [
+      [
+        -0.11999999731779099,
+        -0.33000001311302185,
+        -0.33000001311302185
+      ],
+      [
+        0.11999999731779099,
+        0.33000001311302185,
+        0.33000001311302185
+      ]
+    ]
+  },
+  "scooter": {
+    "radius": 0.5,
+    "width": 0.27,
+    "file": "scooter.glb",
+    "bytes": 143876,
+    "triangles": 4900,
+    "meshBatches": 5,
+    "materialBatches": 5,
+    "bounds": [
+      [
+        -0.13500000536441803,
+        -0.5,
+        -0.5
+      ],
+      [
+        0.13500000536441803,
+        0.5,
+        0.5
+      ]
+    ]
+  },
+  "transit_disc": {
+    "radius": 0.64,
+    "width": 0.3,
+    "file": "transit_disc.glb",
+    "bytes": 78548,
+    "triangles": 4120,
+    "meshBatches": 4,
+    "materialBatches": 4,
+    "bounds": [
+      [
+        -0.15000000596046448,
+        -0.6399999856948853,
+        -0.6399999856948853
+      ],
+      [
+        0.15000000596046448,
+        0.6399999856948853,
+        0.6399999856948853
+      ]
+    ]
+  },
+  "coordinates": "Game X right, Y up, +Z forward. Chassis center origin; wheel X axle. Three wheelbases: \u00b1length*.62/.7/.9/2; lateral \u00b1(width/2+.05). Source layout translations excluded from GLBs."
+}

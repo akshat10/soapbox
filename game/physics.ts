@@ -1,14 +1,17 @@
 import { Body, Box, ContactMaterial, GSSolver, Material, PointToPointConstraint, Quaternion, RaycastVehicle, SAPBroadphase, Vec3, World } from 'cannon-es';
-import { getBody, getWheel, isLegalBuild } from './catalogue';
+import { getBody, getWheel, isLegalBuild, wheelMounts } from './catalogue';
 import { CHECKPOINT_ZS, FINISH_Z, LANE_CENTERS, START_Z, TRACK_PIECES, groundHeight } from './track';
 import type { Blueprint, PlayerId, Pose, VehicleSnapshot } from './types';
 
 const STEP = 1 / 120;
 const MAX_CHARGE_SECONDS = 0.8;
-const RECOVERY_SECONDS = 1.35;
+// Small timing cushions keep one-button play forgiving without midair charging.
+export const HOP_GRACE_SECONDS = 0.12;
+export const HOP_BUFFER_SECONDS = 0.12;
+export const RECOVERY_SECONDS = 0.8;
+const STALL_SECONDS = 1.8;
 const GROUND_GROUP = 1;
 const VEHICLE_GROUP = 2;
-const WHEELBASE_FACTOR = { short: 0.62, standard: 0.7, long: 0.9 } as const;
 
 export interface DerbyEvent {
   playerId: PlayerId;
@@ -40,9 +43,12 @@ interface Racer {
   stalledSeconds: number;
   checkpointZ: number;
   checkpointVelocity: Vec3;
+  recoveryZ: number;
   lastZ: number;
   collisionAt: number;
   airborneAt: number;
+  lastGroundedAt: number;
+  bufferedRelease: number;
 }
 
 /** The only source of race motion: a fixed-step 3D rigid-body world. */
@@ -98,12 +104,10 @@ export class DerbyPhysics {
     // One-button lanes constrain translation across the road and yaw; pitch and roll remain physical.
     chassis.angularFactor.set(1, 0, 1);
     const vehicle = new RaycastVehicle({ chassisBody: chassis, indexRightAxis: 0, indexUpAxis: 1, indexForwardAxis: 2 });
-    const halfWheelbase = body.length * WHEELBASE_FACTOR[blueprint.wheelbase] / 2;
-    for (const z of [halfWheelbase, -halfWheelbase]) {
-      for (const x of [-1, 1]) {
+    for (const [x, y, z] of wheelMounts(blueprint)) {
         vehicle.addWheel({
           radius: wheels.radius,
-          chassisConnectionPointLocal: new Vec3(x * (body.width / 2 + 0.05), -body.height / 2 - body.comHeight + 0.12, z),
+          chassisConnectionPointLocal: new Vec3(x, y - body.comHeight, z),
           directionLocal: new Vec3(0, -1, 0),
           axleLocal: new Vec3(-1, 0, 0),
           suspensionRestLength: 0.38,
@@ -116,7 +120,6 @@ export class DerbyPhysics {
           rollInfluence: 0.12,
           useCustomSlidingRotationalSpeed: false,
         });
-      }
     }
     vehicle.addToWorld(this.world);
     // A physical planar joint keeps each chassis in its lane. Wheel impulses bypass
@@ -134,7 +137,9 @@ export class DerbyPhysics {
       finished: false, finishTime: null, flips: 0, recoveries: 0, jumps: 0, maxRoll: 0,
       overturnedSeconds: 0, stalledSeconds: 0, checkpointZ: START_Z,
       checkpointVelocity: new Vec3(),
+      recoveryZ: START_Z,
       lastZ: START_Z, collisionAt: -10, airborneAt: 0,
+      lastGroundedAt: -Infinity, bufferedRelease: 0,
     };
     this.racers.set(id, racer);
     this.placeAt(racer, START_Z);
@@ -159,21 +164,17 @@ export class DerbyPhysics {
     if (!racer || racer.held === held) return;
     const wasHeld = racer.held;
     racer.held = held;
+    if (held) racer.bufferedRelease = 0;
     if (!this.running || racer.finished || racer.recoveryLeft > 0) {
       racer.charge = 0;
       return;
     }
     if (wasHeld && !held) {
-      if (racer.grounded && racer.charge > 0.015 && racer.launchLock <= 0) {
-        // Equal stored spring energy produces less launch velocity for a heavier build.
-        const charge = racer.charge / MAX_CHARGE_SECONDS;
-        const hopSpeed = (2.2 + 6 * charge) * Math.sqrt(128 / racer.chassis.mass);
-        racer.chassis.applyImpulse(new Vec3(0, racer.chassis.mass * hopSpeed, 0));
-        racer.jumps += 1;
-        racer.grounded = false;
-        racer.launchLock = 0.16;
-        racer.airborneAt = this.elapsed;
-        this.record(racer, 'jump', charge);
+      if (racer.launchLock <= 0 && (racer.grounded || this.elapsed - racer.lastGroundedAt <= HOP_GRACE_SECONDS)) {
+        this.hop(racer);
+      } else if (racer.launchLock <= 0 && racer.chassis.velocity.y <= 0) {
+        // An early landing tap waits briefly for actual contact. It stores no air charge.
+        racer.bufferedRelease = HOP_BUFFER_SECONDS;
       }
       racer.charge = 0;
     }
@@ -184,6 +185,7 @@ export class DerbyPhysics {
     for (const racer of this.racers.values()) {
       racer.held = false;
       racer.charge = 0;
+      racer.bufferedRelease = 0;
     }
   }
 
@@ -192,6 +194,7 @@ export class DerbyPhysics {
     if (!racer) return;
     racer.held = false;
     racer.charge = 0;
+    racer.bufferedRelease = 0;
   }
 
   update(dtSeconds: number): void {
@@ -201,17 +204,18 @@ export class DerbyPhysics {
       this.elapsed += STEP;
       for (const racer of this.racers.values()) {
         racer.launchLock = Math.max(0, racer.launchLock - STEP);
+        racer.bufferedRelease = Math.max(0, racer.bufferedRelease - STEP);
         if (racer.recoveryLeft > 0) {
           racer.recoveryLeft = Math.max(0, racer.recoveryLeft - STEP);
           racer.chassis.velocity.setZero();
           racer.chassis.angularVelocity.setZero();
-          if (racer.recoveryLeft === 0) this.placeAt(racer, racer.checkpointZ, true);
+          if (racer.recoveryLeft === 0) this.placeAt(racer, racer.recoveryZ, true);
         }
         if (racer.finished || racer.recoveryLeft > 0) {
           racer.charge = 0;
         } else if (racer.held && racer.grounded && racer.launchLock === 0) {
           racer.charge = Math.min(MAX_CHARGE_SECONDS, racer.charge + STEP);
-        } else if (!racer.grounded) {
+        } else if (!racer.grounded && this.elapsed - racer.lastGroundedAt > HOP_GRACE_SECONDS) {
           racer.charge = 0;
         }
       }
@@ -238,7 +242,7 @@ export class DerbyPhysics {
           return { position: { x: p.x, y: p.y, z: p.z }, quaternion: this.quat(wheel.worldTransform.quaternion) };
         }),
         speed: chassis.velocity.length(),
-        progress: Math.max(0, Math.min(1, (chassis.position.z - START_Z) / (FINISH_Z - START_Z))),
+        progress: Math.max(0, Math.min(1, ((racer.recoveryLeft > 0 ? racer.recoveryZ : chassis.position.z) - START_Z) / (FINISH_Z - START_Z))),
         charge: racer.charge / MAX_CHARGE_SECONDS,
         grounded: racer.grounded,
         recovering: racer.recoveryLeft > 0,
@@ -253,14 +257,14 @@ export class DerbyPhysics {
     });
   }
 
-  reset(blueprints: Blueprint[]): void {
+  reset(blueprints: Blueprint[], racerIds: PlayerId[] = blueprints.slice(0, 4).map((_, id) => id as PlayerId)): void {
     this.running = false;
     for (const racer of this.racers.values()) this.removeRacer(racer);
     this.racers.clear();
     this.events.length = 0;
     this.elapsed = 0;
     this.accumulator = 0;
-    blueprints.slice(0, 2).forEach((blueprint, id) => this.addPlayer(id as PlayerId, blueprint));
+    for (const id of racerIds) if (blueprints[id]) this.addPlayer(id, blueprints[id]);
   }
 
   dispose(): void {
@@ -279,6 +283,10 @@ export class DerbyPhysics {
     if (wasGrounded && !racer.grounded) racer.airborneAt = this.elapsed;
     if (!wasGrounded && racer.grounded && this.elapsed - racer.airborneAt > 0.18) this.record(racer, 'landing', tilt);
     if (racer.finished || racer.recoveryLeft > 0) return;
+    if (racer.grounded) {
+      racer.lastGroundedAt = this.elapsed;
+      if (racer.bufferedRelease > 0) this.hop(racer);
+    }
     const position = racer.chassis.position;
 
     if (position.z >= FINISH_Z && position.y > groundHeight(FINISH_Z) - 4) {
@@ -303,8 +311,8 @@ export class DerbyPhysics {
     if (Math.abs(racer.chassis.velocity.z) < 0.5 && this.elapsed > 2) racer.stalledSeconds += STEP;
     else racer.stalledSeconds = 0;
     const fellOff = position.y < groundHeight(position.z) - 5 || position.z < START_Z - 5;
-    if (racer.overturnedSeconds > 1 || racer.stalledSeconds > 3.5 || fellOff) {
-      if (racer.overturnedSeconds > 1) {
+    if (racer.overturnedSeconds > 0.7 || racer.stalledSeconds > STALL_SECONDS || fellOff) {
+      if (racer.overturnedSeconds > 0.7) {
         racer.flips += 1;
         this.record(racer, 'flip', tilt);
       }
@@ -313,11 +321,32 @@ export class DerbyPhysics {
     racer.lastZ = position.z;
   }
 
+  private hop(racer: Racer): void {
+    // Equal stored spring energy still gives heavier builds less launch velocity.
+    const charge = racer.charge / MAX_CHARGE_SECONDS;
+    const hopSpeed = (2.2 + 6 * charge) * Math.sqrt(128 / racer.chassis.mass);
+    racer.chassis.applyImpulse(new Vec3(0, racer.chassis.mass * hopSpeed, 0));
+    racer.jumps += 1;
+    racer.grounded = false;
+    racer.charge = 0;
+    racer.bufferedRelease = 0;
+    racer.lastGroundedAt = -Infinity;
+    racer.launchLock = 0.16;
+    racer.airborneAt = this.elapsed;
+    this.record(racer, 'jump', charge);
+  }
+
   private recover(racer: Racer): void {
+    // Right the car just behind its crash on the catch road. Replaying a distant
+    // checkpoint with identical momentum can trap a novice in the same crash forever.
+    // Never put a car farther along than it got, even if it rolled backwards.
+    const setback = getBody(racer.blueprint.bodyId).length * 0.6 + 0.5;
+    racer.recoveryZ = Math.max(START_Z, racer.chassis.position.z - setback);
     racer.recoveries += 1;
     racer.recoveryLeft = RECOVERY_SECONDS;
-    racer.held = false;
     racer.charge = 0;
+    racer.bufferedRelease = 0;
+    racer.lastGroundedAt = -Infinity;
     racer.grounded = false;
     racer.overturnedSeconds = 0;
     racer.stalledSeconds = 0;
@@ -345,8 +374,11 @@ export class DerbyPhysics {
     racer.chassis.torque.setZero();
     racer.chassis.aabbNeedsUpdate = true;
     racer.chassis.wakeUp();
-    racer.held = false;
+    // A thumb held through recovery resumes charging on contact; cancellation still wins.
+    if (!restoreVelocity) racer.held = false;
     racer.charge = 0;
+    racer.bufferedRelease = 0;
+    racer.lastGroundedAt = -Infinity;
     racer.grounded = false;
     racer.launchLock = 0.1;
     for (let i = 0; i < racer.vehicle.wheelInfos.length; i++) {

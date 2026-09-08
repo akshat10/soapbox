@@ -42,3 +42,6 @@ next-env.d.ts
 __pycache__/
 *.py[cod]
 *.blend[0-9]
+
+# local browser verification artifacts
+/output/playwright/

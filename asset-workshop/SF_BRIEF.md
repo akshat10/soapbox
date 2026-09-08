@@ -1,0 +1,13 @@
+# SF modular asset sprint
+
+User authorized THREE chassis and THREE wheel types only. No gadgets. This overrides the stale BATCH_BRIEF scope. Each worker owns one asset at a time. Parent runs Blender, exports, renders, and integrates. Do not edit any game or shared file. Do not launch additional agents, sessions, or Blender UI. Inspect the assigned concept sheet and output/doodle-derby-study.png with an image tool.
+
+Use common.py helpers and `from common import *`. Module under batches/sf, no top-level building. One no-argument build function returns an empty with ALL mesh parts parented beneath it. Helpers use GAME coordinates: X right, Y up, +Z forward. Chassis centered at physical box center, wheels centered on axle along X. Native meshes only, original rounded miniature interpretation of supplied concepts. Match study's cream/coral/cobalt/mint palette, bevels, flat material colors. Simplify photographic texture into a few intentional sculpted details. Aim under 15k triangles/chassis and 5k/wheel, <=8 materials. No wheels, people, flags baked into chassis. Do not render/export yourself.
+
+Chassis contracts (width,height,length): sourdough (1.8,1.25,2.5), mission_burrito (1.7,1.05,3.5), painted_porch (2.2,2.3,2.9). Decorative details must stay near those bounds. Body bottom is -height/2 and top +height/2. Wheel centers laterally ±(width/2+.05), fore/aft ±length * (.62/.7/.9) / 2 for three wheelbases; do not bake axles into chassis. Include small attachment plates near bottom edges.
+
+Driver space: sourdough and burrito centered X0 Z=-.25, seat base Y=.22. Keep opening X±.40 Z[-.67,.23] clear above seat. Porch seat base Y=-.63, Z=-.18, X0; driver rises .8 above seat so canopy underside must be >=.5. Keep front open toward +Z. Parent supplies driver. Gadget future mount clear at back center, not implemented.
+
+Wheel contracts: skate radius .33 width .24, scooter radius .5 width .27, transit_disc radius .64 width .30. Exactly circular exterior; no oversized treads outside rolling radius. Double-sided wheel face details. X axle, origin hub center. Material PlayerColor only on small accent. Four copies assembled by game; output ONE wheel. Wheels must be visibly distinct: creamy chunky polyurethane + coral bearing, rubber scooter + inset cream rim, cobalt/cream concentric transit disc + brushed hub. No official logos.
+
+Callable names: sourdough.py/build_sourdough, mission_burrito.py/build_mission_burrito, painted_porch.py/build_painted_porch, skate.py/build_skate, scooter.py/build_scooter, transit_disc.py/build_transit_disc. First usable script urgently; parent can iterate after rendering. Report material names, clearance, and any deviations.

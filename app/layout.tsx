@@ -4,8 +4,9 @@ import './party.css';
 import './phone.css';
 
 export const metadata: Metadata = {
-  title: 'Doodle Derby — Bad ideas. Great races.',
-  description: 'Build a ridiculous soapbox, charge your spring, and race a friend downhill. A two-player 3D party game. Play together with your phones as controllers.',
+  title: 'Silicon Racer — Big ideas. Bad brakes.',
+  description: 'Build something ridiculous and race it downhill. A 3D party game for 2–4 friends, with a full race view on every phone.',
+  icons: { icon: '/icon.svg' },
 };
 
 export default function RootLayout({

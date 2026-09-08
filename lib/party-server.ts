@@ -1,5 +1,6 @@
 import { DEFAULT_BUILDS, isLegalBuild } from '@/game/catalogue';
-import type { Blueprint, PlayerId } from '@/game/types';
+import type { Blueprint, PlayerId, Pose, Vec3, Quat } from '@/game/types';
+import { MAX_PARTY_PLAYERS } from '@/game/party-types';
 import type { ControllerPacket, PartyInput, PartyPlayer, PartyState, PhoneSnapshot } from '@/game/party-types';
 
 /** A narrow D1 interface keeps the relay testable without a Workers runtime. */
@@ -24,7 +25,7 @@ interface PlayerRow {
   last_seen_at: number;
 }
 
-const MAX_BODY_BYTES = 32 * 1024;
+const MAX_BODY_BYTES = 128 * 1024;
 const MAX_SDP_CHARS = 12 * 1024;
 const ROOM_LIFETIME_MS = 2 * 60 * 60 * 1000;
 const PLAYER_CONNECTED_MS = 3500;
@@ -55,11 +56,11 @@ function integer(value: unknown, min = 0, max = Number.MAX_SAFE_INTEGER): number
   if (!Number.isSafeInteger(number)) fail('Expected a whole number.');
   return number;
 }
-function pair<T>(value: unknown, parse: (item: unknown) => T): [T, T] {
-  if (!Array.isArray(value) || value.length !== 2) fail('Two player values are required.');
-  return [parse(value[0]), parse(value[1])];
+function playerValues<T>(value: unknown, parse: (item: unknown) => T): T[] {
+  if (!Array.isArray(value) || value.length < 2 || value.length > MAX_PARTY_PLAYERS) fail('Two to four player values are required.');
+  return value.map(parse);
 }
-function playerId(value: unknown): PlayerId { return integer(value, 0, 1) as PlayerId; }
+function playerId(value: unknown): PlayerId { return integer(value, 0, MAX_PARTY_PLAYERS - 1) as PlayerId; }
 function code(value: unknown): string {
   if (typeof value !== 'string') fail('Enter the six-character room code.');
   const normalized = value.trim().toUpperCase();
@@ -82,9 +83,26 @@ function description(value: unknown, kind: 'offer' | 'answer'): RTCSessionDescri
   if (item.type !== kind || typeof item.sdp !== 'string' || !item.sdp.length || item.sdp.length > MAX_SDP_CHARS) fail('The controller connection description is not valid.');
   return { type: kind, sdp: item.sdp };
 }
+function vec3(value: unknown): Vec3 {
+  const item = object(value);
+  return { x: finite(item.x, -100000, 100000), y: finite(item.y, -100000, 100000), z: finite(item.z, -100000, 100000) };
+}
+function quaternion(value: unknown): Quat {
+  const item = object(value);
+  return { x: finite(item.x, -1.01, 1.01), y: finite(item.y, -1.01, 1.01), z: finite(item.z, -1.01, 1.01), w: finite(item.w, -1.01, 1.01) };
+}
+function pose(value: unknown): Pose {
+  const item = object(value);
+  return { position: vec3(item.position), quaternion: quaternion(item.quaternion) };
+}
 function snapshot(value: unknown): PhoneSnapshot {
   const item = object(value);
+  if (item.position === undefined && item.quaternion === undefined && item.wheels === undefined)
+    fail('This room uses an older game version. Refresh the shared race screen and start a new room.');
+  if (!Array.isArray(item.wheels) || item.wheels.length !== 4) fail('A racer must have four wheel transforms.');
   return {
+    ...pose(item), wheels: item.wheels.map(pose), blueprint: blueprint(item.blueprint),
+    flips: integer(item.flips, 0, 10000), maxRoll: finite(item.maxRoll, 0, 100000),
     id: playerId(item.id), charge: finite(item.charge, 0, 1),
     grounded: bool(item.grounded), recovering: bool(item.recovering), finished: bool(item.finished),
     finishTime: item.finishTime === null ? null : finite(item.finishTime, 0, 3600),
@@ -95,14 +113,23 @@ function snapshot(value: unknown): PhoneSnapshot {
 function partyState(value: unknown): PartyState {
   const item = object(value);
   if (!['garage', 'countdown', 'racing', 'results', 'final'].includes(String(item.stage))) fail('The race stage is not valid.');
-  if (!Array.isArray(item.snapshots) || item.snapshots.length > 2) fail('At most two racer snapshots are allowed.');
+  if (!Array.isArray(item.snapshots) || item.snapshots.length > MAX_PARTY_PLAYERS) fail('At most four racer snapshots are allowed.');
   const snapshots = item.snapshots.map(snapshot);
   if (new Set(snapshots.map((racer) => racer.id)).size !== snapshots.length) fail('Racer snapshots must have unique player IDs.');
+  const builds = playerValues(item.builds, blueprint);
+  const scores = playerValues(item.scores, (score) => finite(score, 0, 100));
+  const ready = playerValues(item.ready, bool);
+  if (scores.length !== builds.length || ready.length !== builds.length) fail('Player arrays must have matching lengths.');
+  const roster = item.racerIds ?? snapshots.map(racer => racer.id);
+  if (!Array.isArray(roster) || roster.length > MAX_PARTY_PLAYERS) fail('At most four racers may participate.');
+  const racerIds = roster.map(playerId);
+  if (new Set(racerIds).size !== racerIds.length || racerIds.some(id => id >= builds.length)) fail('Choose unique available racer IDs.');
   return {
-    stage: item.stage as PartyState['stage'], builds: pair(item.builds, blueprint), snapshots,
+    ...(item.revision === undefined ? {} : { revision: integer(item.revision) }),
+    ...(item.finishCountdown === undefined ? {} : { finishCountdown: item.finishCountdown === null ? null : finite(item.finishCountdown, 0, 12) }),
+    stage: item.stage as PartyState['stage'], builds, snapshots, racerIds,
     elapsed: finite(item.elapsed, 0, 3600), countdown: finite(item.countdown, -10, 10),
-    heat: integer(item.heat, 1, 3), scores: pair(item.scores, (score) => integer(score, 0, 100)),
-    ready: pair(item.ready, bool), paused: bool(item.paused),
+    heat: integer(item.heat, 1, 3), scores, ready, paused: bool(item.paused),
   };
 }
 function packet(value: unknown): ControllerPacket {
@@ -226,13 +253,13 @@ export async function handlePartyRequest(request: Request, db: PartyDatabase): P
       const playerToken = randomToken();
       // Selecting and claiming a free slot happen in one SQLite write, so simultaneous joins cannot steal a slot.
       const player = await db.prepare(`INSERT INTO party_players (room_code, player_id, token_hash, blueprint_json, last_seen_at)
-        SELECT ?, slots.player_id, ?, CASE slots.player_id WHEN 0 THEN ? ELSE ? END, ?
-        FROM (SELECT 0 AS player_id UNION ALL SELECT 1 AS player_id) AS slots
+        SELECT ?, slots.player_id, ?, CASE (slots.player_id % 2) WHEN 0 THEN ? ELSE ? END, ?
+        FROM (SELECT 0 AS player_id UNION ALL SELECT 1 AS player_id UNION ALL SELECT 2 AS player_id UNION ALL SELECT 3 AS player_id) AS slots
         WHERE NOT EXISTS (SELECT 1 FROM party_players occupied WHERE occupied.room_code = ? AND occupied.player_id = slots.player_id)
           AND EXISTS (SELECT 1 FROM party_rooms WHERE code = ? AND closed_at IS NULL AND expires_at > ?)
         ORDER BY slots.player_id LIMIT 1
         RETURNING *`).bind(roomCode, await digest(playerToken), JSON.stringify(DEFAULT_BUILDS[0]), JSON.stringify(DEFAULT_BUILDS[1]), now, roomCode, roomCode, now).first<PlayerRow>();
-      if (!player) fail('Both controllers are taken. Reopen your controller on the phone that joined, or start a new room.', 409);
+      if (!player) fail('All four racer spots are taken. Reopen your controller on the phone that joined, or start a new room.', 409);
       return json({ code: roomCode, playerId: player.player_id, token: playerToken, expiresAt: room.expires_at, build: JSON.parse(player.blueprint_json), seq: player.packet_seq });
     }
     if (body.action === 'close') {
@@ -243,7 +270,7 @@ export async function handlePartyRequest(request: Request, db: PartyDatabase): P
     if (body.action === 'host') {
       await authenticateHost(room, body.token);
       const state = partyState(body.state);
-      if (!Array.isArray(body.answers) || body.answers.length > 2) fail('At most two controller answers are allowed.');
+      if (!Array.isArray(body.answers) || body.answers.length > MAX_PARTY_PLAYERS) fail('At most four controller answers are allowed.');
       const answers = body.answers.map((value: unknown) => {
         const answer = object(value);
         const offer = description({ type: 'offer', sdp: answer.offerSdp }, 'offer');

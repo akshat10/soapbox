@@ -1,9 +1,9 @@
-export type PlayerId = 0 | 1;
-export type WheelId = 'casters' | 'standard' | 'monster';
+export type PlayerId = 0 | 1 | 2 | 3;
+export type WheelId = 'casters' | 'standard' | 'monster' | 'skate' | 'scooter' | 'transit_disc';
 export type Wheelbase = 'short' | 'standard' | 'long';
 export type Stage = 'garage' | 'countdown' | 'racing' | 'results' | 'final';
 export interface Blueprint { bodyId: string; wheelId: WheelId; wheelbase: Wheelbase }
-export interface BodyDef { id: string; name: string; family: string; description: string; cost: number; mass: number; width: number; height: number; length: number; color: number; comHeight: number }
+export interface BodyDef { id: string; name: string; family: string; description: string; cost: number; mass: number; width: number; height: number; length: number; color: number; comHeight: number; driverSeat?: [number, number, number] }
 export interface WheelDef { id: WheelId; name: string; radius: number; mass: number; cost: number; grip: number }
 export interface Vec3 { x: number; y: number; z: number }
 export interface Quat { x: number; y: number; z: number; w: number }
