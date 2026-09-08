@@ -7,7 +7,6 @@ import { DEFAULT_BUILDS, getBody, getWheel, wheelMounts } from './catalogue';
 import { createVehicleModel, createWheelModel } from './visuals';
 import { SOLO_RIVALS } from './solo';
 import { PLAYER_COLORS } from './race';
-import { fitOverviewCamera } from './landing-overview';
 
 /** A lightweight animated preview on the real circuit, independent of the race. */
 export async function createLandingScene(host: HTMLElement): Promise<(() => void) | undefined> {
@@ -35,18 +34,19 @@ export async function createLandingScene(host: HTMLElement): Promise<(() => void
   const fill = new THREE.DirectionalLight(0xc4e1f4, .7);
   fill.position.set(140, 80, -60); scene.add(fill);
 
-  const hero = route.frame(160);
-  const center = new THREE.Vector3(hero.position.x, hero.position.y + 4, hero.position.z);
-  const camera = new THREE.OrthographicCamera(-150, 150, 150, -150, .1, 2000);
-  camera.position.copy(center).add(new THREE.Vector3(85, 100, 120));
+  const hero = route.frame(108);
+  const forward = new THREE.Vector3(hero.tangent.x, 0, hero.tangent.z).normalize();
+  const right = new THREE.Vector3(hero.right.x, 0, hero.right.z).normalize();
+  const center = new THREE.Vector3(hero.position.x, hero.position.y + 2.5, hero.position.z).addScaledVector(forward, 7);
+  const camera = new THREE.PerspectiveCamera(48, 1, .1, 1400);
+  camera.position.set(hero.position.x, hero.position.y + 11, hero.position.z).addScaledVector(forward, -18).addScaledVector(right, 8);
   camera.lookAt(center);
-  camera.zoom = 3.4;
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.copy(center);
   controls.enablePan = false; controls.enableZoom = true;
-  controls.minZoom = .45; controls.maxZoom = 6; controls.zoomSpeed = .7;
+  controls.minDistance = 12; controls.maxDistance = 420; controls.zoomSpeed = .7;
   controls.enableDamping = false; controls.rotateSpeed = .45;
-  controls.minPolarAngle = Math.PI / 6; controls.maxPolarAngle = Math.PI / 3;
+  controls.minPolarAngle = Math.PI / 8; controls.maxPolarAngle = Math.PI / 2.2;
   const coarse = window.matchMedia('(pointer: coarse)');
   controls.enableRotate = !coarse.matches;
   if (coarse.matches) renderer.domElement.style.touchAction = 'pan-y';
@@ -71,7 +71,8 @@ export async function createLandingScene(host: HTMLElement): Promise<(() => void
     group.add(shadow); models.add(group);
     return { group, wheels, radius: wheel.radius, distance: starts[id], id };
   });
-  let packDistance = 160, animationTime = 0;
+  let packDistance = 120, animationTime = 0;
+  let cameraHeading = Math.atan2(hero.tangent.x, hero.tangent.z);
   const positionRacers = (dt: number) => {
     const frame = route.lookFrame(packDistance), ahead = route.lookFrame(packDistance + 8);
     const bend = Math.acos(THREE.MathUtils.clamp(frame.tangent.dot(ahead.tangent), -1, 1));
@@ -105,12 +106,18 @@ export async function createLandingScene(host: HTMLElement): Promise<(() => void
       last = now;
       positionRacers(dt);
       if (dt) {
-        // Travel with the pack: the road and cars stay in view instead of
-        // spending most of the intro looking at an empty stretch of bay.
-        const target = racers.reduce((sum, racer) => sum.add(racer.group.position), new THREE.Vector3()).multiplyScalar(1 / racers.length);
-        target.y += 4;
-        const shift = target.sub(controls.target).multiplyScalar(1 - Math.exp(-dt * 2));
-        controls.target.add(shift); camera.position.add(shift);
+        // Stay just behind the lead showcase car, with rivals and the next
+        // corner ahead. Orbit/zoom offsets remain adjustable by the viewer.
+        const car = racers[0];
+        const road = route.lookFrame(car.distance + 3);
+        const direction = new THREE.Vector3(road.tangent.x, 0, road.tangent.z).normalize();
+        const target = car.group.position.clone().addScaledVector(direction, 7); target.y += 2.5;
+        const heading = Math.atan2(direction.x, direction.z);
+        const turn = Math.atan2(Math.sin(heading - cameraHeading), Math.cos(heading - cameraHeading)) * (1 - Math.exp(-dt * 3));
+        cameraHeading += turn;
+        const offset = camera.position.clone().sub(controls.target).applyAxisAngle(new THREE.Vector3(0, 1, 0), turn);
+        controls.target.lerp(target, 1 - Math.exp(-dt * 5));
+        camera.position.copy(controls.target).add(offset); camera.lookAt(controls.target);
       }
       if (dt) course.mixer.update(dt);
       course.features.update(undefined, dt, true, motion.matches);
@@ -123,11 +130,8 @@ export async function createLandingScene(host: HTMLElement): Promise<(() => void
     if (!disposed && visible && !document.hidden && !pending) pending = requestAnimationFrame(draw);
   };
   const refit = () => {
-    const zoom = camera.zoom;
-    fitOverviewCamera(camera, width / height);
-    const halfWidth = (camera.right - camera.left) / 2, halfHeight = (camera.top - camera.bottom) / 2;
-    camera.left = -halfWidth; camera.right = halfWidth; camera.top = halfHeight; camera.bottom = -halfHeight;
-    camera.near = .1; camera.far = 2000; camera.zoom = zoom; camera.updateProjectionMatrix();
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
     requestRender();
   };
   controls.addEventListener('change', requestRender);
