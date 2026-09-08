@@ -5,6 +5,7 @@ import type { PartyState } from '@/game/party-types';
 import type { DerbyRenderer } from '@/game/renderer';
 import type { PlayerId } from '@/game/types';
 import { SnapshotPlayback } from '@/game/snapshot-playback';
+import { raceDiagnostics as diag } from '@/game/race-diagnostics';
 
 const FRAME_MS = 1000 / 60;
 
@@ -25,6 +26,7 @@ export default function PhoneRaceView({ state, stateSource, player, onReady }: {
     let animation = 0;
     let lastDraw = 0, lastFrame = 0, frameCredit = 0;
     let qualityTime = 0, qualityFrames = 0;
+    let previousPosition: { x: number; y: number; z: number } | null = null;
     let buildKey = '';
     let lastPacket: PartyState | null = null;
     const playback = new SnapshotPlayback();
@@ -43,6 +45,8 @@ export default function PhoneRaceView({ state, stateSource, player, onReady }: {
           const frameElapsed = lastFrame ? now - lastFrame : FRAME_MS;
           lastFrame = now;
           const current = stateSource?.current ?? fallbackState.current;
+          diag.phase(current.stage,current.heat,current.paused,!document.hidden,!!current.snapshots.find(s=>s.id===player)?.finished,now);
+          diag.mark('frame',frameElapsed,now);
           if (document.hidden) { lastDraw = now; frameCredit = 0; qualityTime = 0; qualityFrames = 0; return; }
           if (lastPacket !== current) {
             playback.push(current, now);
@@ -59,7 +63,14 @@ export default function PhoneRaceView({ state, stateSource, player, onReady }: {
           frameCredit %= FRAME_MS;
           const dt = lastDraw ? Math.min(elapsed / 1000, .05) : 1 / 60;
           lastDraw = now;
-          scene.render(current.stage, playback.sample(now), dt, now / 1000, player);
+          const poses = playback.sample(now);
+          const own = poses.find(s=>s.id===player);
+          if (own && current.stage==='racing' && !current.paused && !own.finished && !own.recovering && own.speed>1 && previousPosition && Math.hypot(own.position.x-previousPosition.x,own.position.y-previousPosition.y,own.position.z-previousPosition.z)<.00001) diag.mark('motionHold');
+          previousPosition = own ? {...own.position} : null;
+          const drawAt = performance.now();
+          scene.render(current.stage, poses, dt, now / 1000, player);
+          diag.mark('draw',performance.now()-drawAt);
+          diag.mark('buffer',playback.delayMs);
           // Reduce fill cost only when sustained frame delivery is slow. Never
           // rebuild a scene or increase resolution mid-race on a warm phone.
           if (elapsed > 0) { qualityTime += Math.min(elapsed, 250); qualityFrames++; }
