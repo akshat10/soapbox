@@ -7,10 +7,10 @@ const FILES = {
   wheel: '/models/street-wheel.glb',
   sourdough: '/models/sf/sourdough.glb',
   mission_burrito: '/models/sf/mission_burrito.glb',
-  painted_porch: '/models/sf/painted_porch.glb',
-  skate: '/models/sf/skate.glb',
-  scooter: '/models/sf/scooter.glb',
-  transit_disc: '/models/sf/transit_disc.glb',
+  painted_porch: '/models/sf-v2/painted_porch.glb',
+  skate: '/models/sf-v2/skate.glb',
+  scooter: '/models/sf-v2/scooter.glb',
+  transit_disc: '/models/sf-v2/transit_disc.glb',
 } as const;
 export type AssetId = keyof typeof FILES;
 const sources = new Map<AssetId, THREE.Group>();
@@ -20,7 +20,7 @@ let loading: Promise<void> | undefined;
 export function preloadModels(): Promise<void> {
   return loading ??= Promise.all(Object.entries(FILES).map(async ([id, url]) => {
     try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
       if (!response.ok) throw new Error(`${response.status} ${url}`);
       const gltf = await new GLTFLoader().parseAsync(await response.arrayBuffer(), '/models/');
       sources.set(id as AssetId, gltf.scene);
@@ -30,7 +30,7 @@ export function preloadModels(): Promise<void> {
   })).then(() => undefined);
 }
 
-/** Each instance owns its resources, so changing a build cannot dispose another vehicle. */
+/** Instances own geometry/materials; imported textures stay shared across vehicles. */
 export function cloneModel(id: AssetId, colors: Record<string, number> = {}): THREE.Group | undefined {
   const source = sources.get(id);
   if (!source) return undefined;
@@ -43,8 +43,10 @@ export function cloneModel(id: AssetId, colors: Record<string, number> = {}): TH
       let copy = materials.get(original);
       if (!copy) {
         copy = original.clone();
-        if (copy instanceof THREE.MeshStandardMaterial && colors[original.name] !== undefined) {
-          copy.color.setHex(colors[original.name]);
+        const color = colors[original.name]
+          ?? (original.name.includes('PlayerColor') ? colors.PlayerColor : undefined);
+        if (copy instanceof THREE.MeshStandardMaterial && color !== undefined) {
+          copy.color.setHex(color);
         }
         materials.set(original, copy);
       }

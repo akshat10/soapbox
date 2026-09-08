@@ -2,9 +2,12 @@ import * as THREE from 'three';
 import { createVehicleModel, createWheelModel, createTrackScene } from './visuals';
 import { getBody, getWheel } from './catalogue';
 import { groundHeight } from './track';
+import { BAY_OR_BUST_COURSE as course } from './course';
+import { disposeCourseScene, type CourseScene } from './course-scene';
 import { RaceEffects } from './race-effects';
 import { PLAYER_COLORS } from './race';
 import { batchStaticTrack } from './scene-batch';
+import { ReferenceLighting, createContactShadowTexture } from './reference-lighting.js';
 import type { Blueprint, PlayerId, Stage, VehicleSnapshot } from './types';
 
 const COLORS = PLAYER_COLORS.map(color => new THREE.Color(color).getHex());
@@ -30,7 +33,7 @@ export const CHASE_CAMERA = {
 } as const;
 
 export type RendererProfile = 'default' | 'phone';
-export interface RendererOptions { profile?: RendererProfile }
+export interface RendererOptions { profile?: RendererProfile; courseScene?: CourseScene }
 
 type Car = { chassis: THREE.Group; wheels: THREE.Group[]; shadow: THREE.Mesh; effects: RaceEffects };
 type CameraRig = { ready: boolean; aim: THREE.Vector3; previousPosition: THREE.Vector3; recovering: boolean; recoveries: number };
@@ -60,44 +63,41 @@ export class DerbyRenderer {
  private motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
  private reducedMotion = this.motionPreference.matches;
  private onMotionPreference = (event: MediaQueryListEvent) => { this.reducedMotion = event.matches; };
- private raceLight: THREE.DirectionalLight | null = null;
+ private lighting: ReferenceLighting;
+ private lightFocus = new THREE.Vector3();
  private positionTarget = new THREE.Vector3();
  private aimTarget = new THREE.Vector3();
+ private contactTexture = createContactShadowTexture();
+ private authored?: CourseScene;
+ private classicTrack: THREE.Group;
+ private coastalColor = new THREE.Color(0xbedfdc);
+ private classicFog = new THREE.Fog(0xbedfdc,85,205);
+ private courseFog = new THREE.Fog(0xb9d9df,180,750);
+ private groundNormal = new THREE.Vector3();
+ private groundMatrix = new THREE.Matrix4();
 
  constructor(parent: HTMLElement, options: RendererOptions = {}) {
   this.parent = parent;
   this.phone = options.profile === 'phone';
   this.renderer = new THREE.WebGLRenderer({ antialias: !this.phone, alpha: false, powerPreference: 'high-performance' });
   this.renderer.setPixelRatio(this.phone ? 1 : Math.min(window.devicePixelRatio, 1.5));
-  this.renderer.shadowMap.enabled = !this.phone;
-  this.renderer.shadowMap.type = THREE.PCFShadowMap;
-  this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-  this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  this.renderer.toneMappingExposure = 1.25;
+  this.lighting = new ReferenceLighting(this.renderer, {
+   raceScene: this.scene,
+   showroomScene: this.phone ? undefined : this.showroom,
+   quality: 'mobile',
+  });
+  if (this.phone) {this.renderer.shadowMap.enabled = false;this.classicFog.near=52;this.classicFog.far=105;}
   parent.appendChild(this.renderer.domElement);
-  this.scene.background = new THREE.Color(0xade2ef);
-  this.scene.fog = new THREE.Fog(0xade2ef, this.phone ? 52 : 85, this.phone ? 105 : 205);
+  this.scene.background = new THREE.Color(0xbedfdc);
+  this.scene.fog = new THREE.Fog(0xbedfdc, this.phone ? 52 : 85, this.phone ? 105 : 205);
   if (this.phone) this.cameras.forEach(camera => { camera.far = 110; camera.updateProjectionMatrix(); });
-  this.showroom.background = new THREE.Color(0xafdcd9);
-  for (const scene of [this.scene, this.showroom]) {
-   scene.add(new THREE.HemisphereLight(0xfffbdd, 0x4b7a67, 2.5));
-   const light = new THREE.DirectionalLight(0xfff3d6, 3);
-   light.position.set(-20, 50, -25);
-   light.castShadow = !this.phone;
-   light.shadow.mapSize.set(2048, 2048);
-   light.shadow.camera.left = -35;
-   light.shadow.camera.right = 35;
-   light.shadow.camera.top = 40;
-   light.shadow.camera.bottom = -35;
-   light.shadow.camera.far = 130;
-   light.shadow.bias = -0.0007;
-   scene.add(light);
-   scene.add(light.target);
-   if (scene === this.scene) this.raceLight = light;
-  }
-  this.scene.add(batchStaticTrack(createTrackScene({ lowDetail: this.phone })));
+  this.showroom.background = new THREE.Color(0xbedfdc);
+  this.classicTrack=batchStaticTrack(createTrackScene({ lowDetail: this.phone }));
+  this.scene.add(this.classicTrack);
+  this.authored=options.courseScene;
+  if(this.authored){this.authored.root.visible=false;this.scene.add(this.authored.root);}
   if (!this.phone) {
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0xafdcd9, roughness: 1 }));
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0xbedfdc, roughness: 1 }));
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.3;
   floor.receiveShadow = true;
@@ -138,9 +138,10 @@ export class DerbyRenderer {
   builds.slice(0, MAX_RACERS).forEach((build, i) => {
    const chassis = createVehicleModel(build, COLORS[i]);
    const wheels = Array.from({ length: 4 }, () => createWheelModel(build, COLORS[i]));
-   const shadow = new THREE.Mesh(new THREE.CircleGeometry(1.7, 24), new THREE.MeshBasicMaterial({ color: 0x101b20, transparent: true, opacity: 0.18, depthWrite: false }));
+   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: this.contactTexture, color: 0x102f28, transparent: true, opacity: 0.28, depthWrite: false }));
    shadow.rotation.x = -Math.PI / 2;
    const effects = new RaceEffects(COLORS[i]);
+   this.ownMaterials([chassis,...wheels]);
    this.scene.add(chassis, shadow, effects.group, ...wheels);
    this.cars.push({ chassis, wheels, shadow, effects });
    if (this.phone) return;
@@ -160,6 +161,7 @@ export class DerbyRenderer {
    preview.position.set(x, 0, z);
    preview.rotation.y = i % 2 === 0 ? -0.15 : 0.12;
    this.plinths[i].position.set(x, -0.08, z);
+   this.ownMaterials([preview]);
    this.showroom.add(preview);
    this.previewCars.push(preview);
   });
@@ -192,6 +194,21 @@ export class DerbyRenderer {
   const portraitAimDrop = focused && aspect < 0.8 ? CHASE_CAMERA.portraitAimDrop : 0;
   this.aimTarget.set(snapshot.position.x, cameraRoadHeight(snapshot.position.z + CHASE_CAMERA.lookAhead) + CHASE_CAMERA.lookHeight - portraitAimDrop, snapshot.position.z + CHASE_CAMERA.lookAhead);
 
+  if(snapshot.courseId==='bay-or-bust' && snapshot.pathDistance!==undefined){
+   const roadFrame=course.frame(snapshot.pathDistance,snapshot.pathId);
+   const behind=course.frame(Math.max(0,snapshot.pathDistance-CHASE_CAMERA.distance),snapshot.pathId);
+   const ahead=course.frame(snapshot.pathDistance+(aspect<1?5:CHASE_CAMERA.lookAhead),snapshot.pathId);
+   const dx=snapshot.position.x-roadFrame.position.x,dz=snapshot.position.z-roadFrame.position.z;
+   const lift=Math.max(0,snapshot.position.y-roadFrame.position.y-1.1);
+   const follow=this.reducedMotion?0:Math.min(1.1,lift*.2);
+   // Look around the bend, with the horizon level even on banked sections.
+   this.positionTarget.set(behind.position.x+dx*.8,Math.max(behind.position.y,roadFrame.position.y)+4.5+follow,behind.position.z+dz*.8);
+   if(snapshot.pathDistance<CHASE_CAMERA.distance)this.positionTarget.addScaledVector(new THREE.Vector3(roadFrame.tangent.x,0,roadFrame.tangent.z).normalize(),-(CHASE_CAMERA.distance-snapshot.pathDistance));
+   this.aimTarget.set(ahead.position.x+dx*.25,ahead.position.y+1.2-(narrow?.5:0),ahead.position.z+dz*.25);
+   if(aspect<1){this.aimTarget.x=THREE.MathUtils.lerp(snapshot.position.x,this.aimTarget.x,.5);this.aimTarget.z=THREE.MathUtils.lerp(snapshot.position.z,this.aimTarget.z,.5);}
+   camera.far=this.phone?300:1400;
+  }else camera.far=this.phone?110:CHASE_CAMERA.far;
+
   const teleported = rig.previousPosition.distanceToSquared(snapshot.position) > CHASE_CAMERA.teleportDistance ** 2;
   const recovered = rig.recovering !== snapshot.recovering || rig.recoveries !== snapshot.recoveries;
   if (!rig.ready || teleported || recovered) {
@@ -218,6 +235,11 @@ export class DerbyRenderer {
  render(stage: Stage, snapshots: VehicleSnapshot[], dt: number, time: number, focusPlayerId?: PlayerId) {
   const frameDt = Math.min(Math.max(dt, 0), 0.1);
   const focused = focusPlayerId !== undefined;
+  const authored=snapshots.some(snapshot=>snapshot.courseId==='bay-or-bust')&&!!this.authored;
+  this.classicTrack.visible=!authored;
+  if(this.authored){this.authored.root.visible=authored;if(authored&&!this.reducedMotion)this.authored.mixer.update(frameDt);}
+  this.scene.background=authored&&this.authored?.sky?this.authored.sky:this.coastalColor;
+  this.scene.fog=authored?this.courseFog:this.classicFog;
   if (stage === 'garage') {
    if (this.phone) return;
    this.renderer.setScissorTest(false);
@@ -231,14 +253,19 @@ export class DerbyRenderer {
    if (preview) {
     const { x, z } = preview.position;
     const distance = this.width / this.height < 0.7 ? 1.3 : 1;
-    this.showroomCamera.position.set(x - 7 * distance, 6.5 * distance, z + 9 * distance);
+    this.showroomCamera.position.set(x - 6.8 * distance, 5.2 * distance, z + 8.5 * distance);
+    if(this.width > 800)this.showroomCamera.setViewOffset(this.width,this.height,-this.width * .205,-this.height * .01,this.width,this.height);
+    else this.showroomCamera.clearViewOffset();
     this.showroomCamera.lookAt(x, 0.8, z);
    } else {
+    this.showroomCamera.clearViewOffset();
     const distance = this.previewCars.length > 2 ? 1.35 : 1;
     this.showroomCamera.position.set(-13 * distance, 13 * distance, 22 * distance);
     this.showroomCamera.lookAt(0, 0.8, 0);
    }
    this.cameraRigs.forEach(rig => { rig.ready = false; });
+   this.lightFocus.set(preview?.position.x ?? 0, 1, preview?.position.z ?? 0);
+   this.lighting.prepareShowroom(this.lightFocus);
    this.renderer.render(this.showroom, this.showroomCamera);
    return;
   }
@@ -262,17 +289,26 @@ export class DerbyRenderer {
    });
    car.chassis.visible = !snapshot.recovering || this.reducedMotion || Math.floor(time * 7) % 2 === 0;
    car.shadow.position.set(snapshot.position.x, groundHeight(snapshot.position.z) + 0.06, snapshot.position.z);
-   car.shadow.scale.set(1, 1.55, 1);
+   const body = getBody(snapshot.blueprint.bodyId), wheel = getWheel(snapshot.blueprint.wheelId);
+   const gap = Math.max(0, snapshot.position.y - groundHeight(snapshot.position.z) - body.height / 2 - wheel.radius);
+   const spread = 1 + Math.min(gap, 3) * .14;
+   car.shadow.scale.set((body.width + .8) * spread, (body.length + .6) * spread, 1);
+   car.shadow.rotation.x = -Math.PI / 2 + Math.atan2(groundHeight(snapshot.position.z + .25) - groundHeight(snapshot.position.z - .25), .5);
+   (car.shadow.material as THREE.MeshBasicMaterial).opacity = .28 * Math.exp(-gap * .85);
+   if(snapshot.courseId==='bay-or-bust'&&snapshot.pathDistance!==undefined){
+    const surface=course.project(snapshot.position,{pathId:snapshot.pathId||'main',distance:snapshot.pathDistance});
+    const ground=surface.position.vadd(surface.right.scale(surface.lateral));
+    car.shadow.position.set(ground.x+surface.up.x*.06,ground.y+surface.up.y*.06,ground.z+surface.up.z*.06);
+    this.groundNormal.set(surface.up.x,surface.up.y,surface.up.z);
+    this.groundMatrix.makeBasis(new THREE.Vector3(surface.right.x,surface.right.y,surface.right.z),new THREE.Vector3(-surface.tangent.x,-surface.tangent.y,-surface.tangent.z),this.groundNormal);
+    car.shadow.quaternion.setFromRotationMatrix(this.groundMatrix);
+    const height=Math.max(0,surface.height-body.height/2-wheel.radius);
+    car.shadow.scale.set((body.width+.8)*(1+height*.1),(body.length+.6)*(1+height*.1),1);
+    (car.shadow.material as THREE.MeshBasicMaterial).opacity=.28*Math.exp(-height*.85);
+   }
    car.effects.update(snapshot, frameDt, stage === 'racing', this.reducedMotion);
    const view = this.viewport(0, displayed.length, focused);
    if (!focused || snapshot.id === focusPlayerId) this.updateCamera(snapshot, frameDt, view.width / view.height, focused);
-  }
-  if (this.raceLight && snapshots.length) {
-   const focus = focused ? snapshots.find(snapshot => snapshot.id === focusPlayerId) : undefined;
-   const middleZ = focus ? focus.position.z : snapshots.reduce((sum, snapshot) => sum + snapshot.position.z, 0) / snapshots.length;
-   const road = cameraRoadHeight(middleZ);
-   this.raceLight.position.set(-20, road + 42, middleZ - 25);
-   this.raceLight.target.position.set(0, road, middleZ);
   }
   // Clear the whole canvas first so an unused fourth quadrant never retains an old frame.
   this.renderer.setScissorTest(false);
@@ -287,23 +323,41 @@ export class DerbyRenderer {
    camera.updateProjectionMatrix();
    this.renderer.setViewport(view.x, view.y, view.width, view.height);
    this.renderer.setScissor(view.x, view.y, view.width, view.height);
+   // Each separated racer gets nearby shadow coverage in their own viewport.
+   const lightZ = snapshot.position.z + 10;
+   if(snapshot.courseId==='bay-or-bust'&&snapshot.pathDistance!==undefined){const frame=course.frame(snapshot.pathDistance+10,snapshot.pathId);this.lightFocus.set(frame.position.x,frame.position.y,frame.position.z);}
+   else this.lightFocus.set(snapshot.position.x, cameraRoadHeight(lightZ), lightZ);
+   this.lighting.prepareRaceView(this.lightFocus);
    this.renderer.render(this.scene, camera);
   });
  }
 
+ private ownMaterials(objects:THREE.Object3D[]) {
+  const copies=new Map<THREE.Material,THREE.Material>();
+  for(const object of objects)object.traverse(node=>{
+   if(!(node instanceof THREE.Mesh)&&!(node instanceof THREE.LineSegments))return;
+   const own=(material:THREE.Material)=>{if(!copies.has(material))copies.set(material,material.clone());return copies.get(material)!;};
+   node.material=Array.isArray(node.material)?node.material.map(own):own(node.material);
+  });
+ }
  disposeObjects(objects: THREE.Object3D[]) {
+  const geometries=new Set<THREE.BufferGeometry>(),materials=new Set<THREE.Material>(),textures=new Set<THREE.Texture>();
   for (const object of objects) object.traverse(node => {
-   if (node instanceof THREE.Mesh) {
-    node.geometry.dispose();
-    const materials = Array.isArray(node.material) ? node.material : [node.material];
-    materials.forEach(material => material.dispose());
+   if (node instanceof THREE.Mesh || node instanceof THREE.LineSegments) {
+    geometries.add(node.geometry);
+    for(const material of Array.isArray(node.material)?node.material:[node.material])materials.add(material);
+    if(node.userData.disposeTexture instanceof THREE.Texture)textures.add(node.userData.disposeTexture);
    }
   });
+  geometries.forEach(geometry=>geometry.dispose());materials.forEach(material=>material.dispose());textures.forEach(texture=>texture.dispose());
  }
 
  dispose() {
   this.resizeObserver.disconnect();
   this.motionPreference.removeEventListener('change', this.onMotionPreference);
+  this.lighting.dispose();
+  this.contactTexture.dispose();
+  if(this.authored)disposeCourseScene(this.authored);
   this.disposeObjects([this.scene, this.showroom]);
   this.renderer.dispose();
   this.renderer.domElement.remove();

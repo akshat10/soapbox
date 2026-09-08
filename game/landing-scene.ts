@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { preloadModels, cloneModel } from './assets';
 import { createVehicleModel, createWheelModel } from './visuals';
 import { getBody, getWheel, wheelMounts } from './catalogue';
+import { ReferenceLighting } from './reference-lighting.js';
 import type { Blueprint } from './types';
 
 /** A small attract scene uses the same chassis, wheels and drivers as the race. */
@@ -11,20 +12,13 @@ export async function createLandingScene(host: HTMLElement): Promise<(() => void
   let renderer: THREE.WebGLRenderer;
   try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' }); } catch { return; }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.setClearColor(0xf7f0df, 0);
   host.appendChild(renderer.domElement);
   const scene = new THREE.Scene();
+  const lighting = new ReferenceLighting(renderer, { showroomScene: scene, quality: 'mobile' });
   const camera = new THREE.PerspectiveCamera(34, 1, .1, 120);
   camera.position.set(14, 12, 19);
   camera.lookAt(0, 1, 0);
-  scene.add(new THREE.HemisphereLight(0xfff9e9, 0x668779, 2.8));
-  const sun = new THREE.DirectionalLight(0xfff4d9, 3.3);
-  sun.position.set(-6, 16, 8); sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -16; sun.shadow.camera.right = 16; sun.shadow.camera.top = 16; sun.shadow.camera.bottom = -16; sun.shadow.normalBias = .04;
-  scene.add(sun);
   const world = new THREE.Group(); scene.add(world);
   function box(w: number, h: number, d: number, color: number, x: number, y: number, z: number) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color, roughness: .9 }));
@@ -63,6 +57,7 @@ export async function createLandingScene(host: HTMLElement): Promise<(() => void
   const render = (time: number) => {
     cars.forEach(({ car, wheels, baseY, z }, i) => { const phase = time * 1.15 + i * 2.6; const hop = Math.pow(Math.max(0, Math.sin(phase)), 8) * .42; car.position.y = baseY + hop; car.position.z = z + Math.sin(phase * .6) * .75; car.rotation.z = Math.sin(phase) * .018; car.rotation.x = Math.sin(phase) * .025; wheels.forEach(wheel => { wheel.rotation.x = time * 3.4; }); });
     marks.forEach((mark, i) => { mark.position.z = ((i * 2 + time * 2) % 16) - 8; });
+    lighting.prepareShowroom();
     renderer.render(scene, camera);
   };
   const resize = () => { const { width, height } = host.getBoundingClientRect(); renderer.setSize(width, height, false); camera.aspect = width / Math.max(1, height); camera.updateProjectionMatrix(); render(0); };
@@ -71,5 +66,5 @@ export async function createLandingScene(host: HTMLElement): Promise<(() => void
   const animate = (now: number) => { frame = requestAnimationFrame(animate); if (document.hidden || reduced.matches) { last = now; return; } if (now - last < 33) return; time += Math.min(.06, (now - last) / 1000); last = now; render(time); };
   frame = requestAnimationFrame(animate);
   const onReduced = () => render(0); reduced.addEventListener('change', onReduced);
-  return () => { cancelAnimationFrame(frame); observer.disconnect(); reduced.removeEventListener('change', onReduced); const geometries = new Set<THREE.BufferGeometry>(); scene.traverse(node => { if (node instanceof THREE.Mesh) geometries.add(node.geometry); }); geometries.forEach(g => g.dispose()); ownMaterials.forEach(m => m.dispose()); renderer.dispose(); renderer.domElement.remove(); };
+  return () => { cancelAnimationFrame(frame); observer.disconnect(); reduced.removeEventListener('change', onReduced); const geometries = new Set<THREE.BufferGeometry>(); scene.traverse(node => { if (node instanceof THREE.Mesh) geometries.add(node.geometry); }); geometries.forEach(g => g.dispose()); ownMaterials.forEach(m => m.dispose()); lighting.dispose(); renderer.dispose(); renderer.domElement.remove(); };
 }
