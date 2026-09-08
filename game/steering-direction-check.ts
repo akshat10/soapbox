@@ -17,6 +17,9 @@ function drive(direction: number) {
 
 const leftKey = keyboardSteering('solo', 0, new Set(['ArrowLeft']));
 const rightKey = keyboardSteering('solo', 0, new Set(['ArrowRight']));
+assert.equal(keyboardSteering('solo', 0, new Set(['ArrowLeft']), true), rightKey, 'Reversed arrows swap the previous left and right commands.');
+assert.equal(keyboardSteering('solo', 0, new Set(['ArrowRight']), true), leftKey);
+assert.equal(keyboardSteering('solo', 0, new Set(['ArrowLeft', 'ArrowRight']), true), 0, 'Opposing arrows still center the tires when reversed.');
 assert.equal(leftKey, manualSteering(-1), 'The left touch arrow and left keyboard arrow must agree.');
 assert.equal(rightKey, manualSteering(1), 'The right touch arrow and right keyboard arrow must agree.');
 const coast = drive(0), left = drive(leftKey), right = drive(rightKey);

@@ -49,7 +49,7 @@ function keyboard(race: DerbyPhysics, mode: LocalMode = 'local') {
   };
 }
 
-assert.deepEqual(sessionCourse(false), { course: 'bay-or-bust', steeringEnabled: true }, 'Both keyboard modes select the authored steering course.');
+assert.deepEqual(sessionCourse(false), { course: 'bay-or-bust', steeringEnabled: true, circuit: true, arcade: true, laps: 3 }, 'Both keyboard modes select the authored steering course.');
 assert.deepEqual(sessionCourse(true), { course: 'classic', steeringEnabled: false }, 'Phone parties retain their hop-only course.');
 for (const [key, id] of [['KeyA', 0], ['KeyD', 0], ['ArrowLeft', 1], ['ArrowRight', 1]] as const) {
   assert.equal(steeringPlayer('local', key), id, `${key} belongs to the correct local driver.`);
@@ -121,20 +121,20 @@ assert.deepEqual(phone.getSnapshots().map(state => state.blueprint), soloBuilds,
 phone.dispose();
 
 for (const firstFinish of [null, 0, 20, 55, 88]) {
-  assert.equal(heatDeadline('solo', false, firstFinish), 90, 'A fast rival cannot shorten the human solo run.');
+  assert.equal(heatDeadline('solo', false, firstFinish), 240, 'A fast rival cannot shorten the human solo run.');
   assert.equal(finishWindow('solo', false, firstFinish, 60), null, 'Solo never shows a rival-triggered grace countdown.');
 }
-assert.equal(heatDeadline('local', false, null), 90);
+assert.equal(heatDeadline('local', false, null), 240);
 assert.equal(finishWindow('local', false, null, 85), null);
 assert.equal(heatDeadline('local', false, 20), 32, 'Local racers receive 12 seconds after the first finish.');
 assert.equal(finishWindow('local', false, 20, 25), 7);
 assert.equal(finishWindow('local', false, 20, 33), 0);
-assert.equal(heatDeadline('local', false, 85), 90, 'Late local finishes cannot exceed the 90-second heat maximum.');
-assert.equal(finishWindow('local', false, 85, 87), 3);
+assert.equal(heatDeadline('local', false, 235), 240, 'Late local finishes cannot exceed the circuit heat maximum.');
+assert.equal(finishWindow('local', false, 235, 237), 3);
 assert.equal(heatDeadline('local', true, null), 60);
 assert.equal(heatDeadline('local', true, 20), 32);
 assert.equal(heatDeadline('solo', true, 55), 60, 'Phone timing wins over any retained local mode flag.');
 
 console.table([{ check: 'P1 D steering', lateralChangeM: p1Delta.toFixed(4) },
   { check: 'P2 ArrowLeft steering', lateralChangeM: p2Delta.toFixed(4) }]);
-console.log('Local race checks passed: Bay or Bust for both keyboard modes; two independent physical drivers; A/D/F and arrows/J; isolated hop/steer release; neutral focus clearing; preserved solo controls/roster and classic phones; solo 90 seconds without bot cutoff; local 90-second cap with 12-second finish grace.');
+console.log('Local race checks passed: Bay or Bust for both keyboard modes; two independent physical drivers; A/D/F and arrows/J; isolated hop/steer release; neutral focus clearing; preserved solo controls/roster and classic phones; solo 240 seconds without bot cutoff; local 240-second cap with 12-second finish grace.');
