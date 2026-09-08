@@ -1,6 +1,6 @@
 # Silicon Racer · Doodle Derby
 
-A playable 3D soapbox racing game. The main mode is a solo Grand Prix against three local AI rivals on **Bay or Bust**, the authored San Francisco course. Arrow keys steer and Space/F controls charged hops. Two players can race the same map with independent steering and split-screen cameras. Phone multiplayer remains available on the original course.
+A playable 3D soapbox racing game. The main mode is a solo Grand Prix against three local AI rivals on **Bay or Bust**, the authored San Francisco course. Arrow keys steer and Space/F controls charged hops. The release entry flow offers single player only. Legacy keyboard and phone multiplayer code is retained, with its entry points hidden.
 
 [Play Silicon Racer](https://doodle-derby-akshat.quiteparticular.chatgpt.site) · [Source repository](https://github.com/akshat10/soapbox)
 
@@ -16,9 +16,9 @@ Choose **Race solo**, build your racer, then choose **Let’s race**. No room, p
 - The course features native neighborhood and bridge geometry, bay water, a coastal sky, textured asphalt and Victorian siding, fine foliage, decorative lantern/crowd animation, a full-screen chase camera, course progress, standings, and speed. Moving road furniture remains static until gameplay collision is implemented.
 - Three AI opponents have been checked headlessly on the entire course with identical outcomes at 30/60/120 Hz. All 15 chassis complete the course with scooter wheels and regular spacing in a repeatable driving check (14 without recovery; the arcade cabinet with one recovery). Precise steering and hop timing can win with the starter build. These repeatable checks do not replace manual playtesting on actual devices.
 
-## Two-player keyboard race
+## Legacy two-player keyboard race
 
-Choose **2 players on this keyboard** from the garage. Both players race the same Bay or Bust road, bridge, neighborhoods, and waterfront as solo, each with a camera following their car.
+This mode is retained in code and hidden from the release entry flow. Both players race the same Bay or Bust road, bridge, neighborhoods, and waterfront as solo, each with a camera following their car.
 
 - Player 1: **A / D** to steer; hold **F** to charge, release to hop.
 - Player 2: **Left / right arrows** to steer; hold **J** to charge, release to hop.
@@ -37,7 +37,7 @@ Choose an SF original (sourdough loaf, Mission burrito, or Victorian porch) or a
 - After a tumble, the crew rights the car just behind the crash and restores its last measured safe momentum. A missed gap has a slower roll-through route. Holding the hop button through recovery keeps the gesture active; canceling still clears it.
 - Three heats, with build changes between them. Placements earn 5, 3, 2, and 1 points; ties share the points for the occupied places. Unfinished vehicles rank behind finishers by current valid course progress when the 60-second limit or the visible 12-second finish window after the leader expires.
 
-## Phone party
+## Legacy phone party (entry hidden)
 
 The published site is public. Anyone with its link can play; no sign-in is required.
 
@@ -110,5 +110,7 @@ Four-player checks: `node --import tsx game/race-check.ts`, `node --import tsx g
 Solo checks: `node --import tsx game/solo-check.ts` covers the classic course AI baseline; `node --import tsx game/course-solo-check.ts` covers the authored course, physical AI steering, control isolation, normal scoring, frame-rate consistency, pause, and mode reset. `game/course-driving-check.ts` and `game/steering-check.ts` exercise the underlying authored road and steering system.
 
 Lantern Quarter regression: `node --import tsx game/course-recovery-check.ts` covers complete runs using binary arrow inputs, inside driving lines, loss of momentum, and rejection of physical relocations. Progress tracking allows for the sampled road's inside-corner projection seams while independently validating actual car movement.
+
+Direction and bridge checks: `node --import tsx game/steering-direction-check.ts` verifies real steering through a chase camera projection with keyboard/touch parity. `node --import tsx game/course-bridge-check.ts` loads the actual bridge asset and checks that its fitted spans meet, retain finite geometry, and clear the driving lane.
 
 Two-player keyboard checks: `node --import tsx game/local-race-check.ts` covers the shared course, separate steering/hop inputs, input clearing, mode resets, and heat timing.

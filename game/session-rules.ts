@@ -32,5 +32,11 @@ export function steeringPlayer(mode: LocalMode, code: string): PlayerId | null {
 export function keyboardSteering(mode: LocalMode, player: PlayerId, keys: ReadonlySet<string>): number {
   if (player > (mode === 'solo' ? 0 : 1)) return 0;
   const [left, right] = mode === 'local' && player === 0 ? ['KeyA', 'KeyD'] : ['ArrowLeft', 'ArrowRight'];
-  return Number(keys.has(right)) - Number(keys.has(left));
+  return manualSteering(Number(keys.has(right)) - Number(keys.has(left)));
+}
+
+/** The chase camera looks along +Z: screen-right is local -X. Cannon's
+ * positive wheel angle turns toward +X, so convert human directions once. */
+export function manualSteering(direction: number): number {
+  return Number.isFinite(direction) && direction !== 0 ? -Math.max(-1, Math.min(1, direction)) : 0;
 }

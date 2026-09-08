@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { conformCourseBridges } from './course-bridge';
 
 export interface CourseScene { root: THREE.Group; mixer: THREE.AnimationMixer; sky: THREE.Texture | null }
 
@@ -10,6 +11,7 @@ export async function loadCourseScene(): Promise<CourseScene> {
   const gltf = await new GLTFLoader().parseAsync(await response.arrayBuffer(), '/models/track/');
   const root = gltf.scene;
   root.name = 'Bay or Bust · authored race course';
+  conformCourseBridges(root);
   root.traverse(node=>{if(/sf_cloud_cluster/i.test(node.name))node.visible=false;});
   root.updateMatrixWorld(true);
   const protectedNodes = new Set<THREE.Object3D>();
