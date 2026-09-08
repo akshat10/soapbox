@@ -4,6 +4,7 @@ import { conformCourseBridges } from './course-bridge';
 import { CourseFeatureVisuals } from './course-feature-visuals';
 import { createCircuitScene } from './circuit-scene';
 import { createCityBackdrop } from './city-backdrop';
+import { repairCourseTerrain } from './course-terrain';
 import { BAY_CIRCUIT_COURSE as course } from './course';
 
 /** Reuse the authored arch and paint at the joined start/finish. Their road
@@ -39,6 +40,7 @@ export async function loadCourseScene(): Promise<CourseScene> {
   const root = gltf.scene;
   root.name = 'Bay or Bust · authored race course';
   conformCourseBridges(root);
+  repairCourseTerrain(root);
   const conflictingScenery=/^sf_distant_sailboat[._]?006$|^sf_coastal_rocks[._]?006$/i;
   const circuitProtected=new Set<THREE.Object3D>();
   const circuitOriginals: { node: THREE.Object3D; position: THREE.Vector3; quaternion: THREE.Quaternion; scale: THREE.Vector3; visible: boolean }[]=[];

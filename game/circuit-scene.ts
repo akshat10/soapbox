@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BAY_CIRCUIT_COURSE, BAY_OR_BUST_COURSE } from './course';
 import { RETURN_START } from './course-circuit';
+import { createReturnRoadFoundation } from './course-terrain';
 
 /** The viaduct is drawn directly from the collider triangles. No visual-only
  * ramps, jumps or barriers: every raised edge has matching road collision. */
@@ -9,6 +10,7 @@ export function createCircuitScene(): THREE.Group {
   const asphalt = new THREE.MeshStandardMaterial({ color: 0x354657, roughness: .92, side: THREE.DoubleSide });
   const curb = new THREE.MeshStandardMaterial({ color: 0xffd452, roughness: .75, side: THREE.DoubleSide });
   const structural = new THREE.MeshStandardMaterial({ color: 0x78949e, roughness: .8 });
+  root.add(createReturnRoadFoundation());
   const startTriangle = (BAY_OR_BUST_COURSE.paths[0].samples.length-1)*10;
   const triangles = BAY_CIRCUIT_COURSE.roadTriangles().slice(startTriangle);
   for (const edges of [false,true]) {
