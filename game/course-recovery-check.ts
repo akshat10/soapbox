@@ -3,7 +3,8 @@ import { Quaternion, Vec3 } from 'cannon-es';
 import { DEFAULT_BUILDS, wheelMounts } from './catalogue';
 import { BAY_OR_BUST_COURSE as course } from './course';
 import { DerbyPhysics } from './physics';
-import { courseHopHeld, courseSteering } from './solo';
+import { SOLO_RIVALS, SoloRaceDriver, courseHopHeld, courseSteering } from './solo';
+import { heatDeadline } from './session-rules';
 import type { VehicleSnapshot } from './types';
 
 function insideLine(state: VehicleSnapshot, lateral: number): number {
@@ -19,7 +20,9 @@ function insideLine(state: VehicleSnapshot, lateral: number): number {
 const summary = [];
 for (const scenario of ['arrow keys', 'inside lane', 'wide inside lane', 'lost momentum'] as const) {
   const race = new DerbyPhysics();
-  race.reset([DEFAULT_BUILDS[0]], [0], { course: 'bay-or-bust', steeringEnabled: true });
+  const driver = new SoloRaceDriver();
+  const withRivals = scenario === 'arrow keys';
+  race.reset([DEFAULT_BUILDS[0], ...SOLO_RIVALS.map(rival => rival.build)], withRivals ? [0, 1, 2, 3] : [0], { course: 'bay-or-bust', steeringEnabled: true });
   race.start();
   const chassis = race.world.bodies.find(body => body.mass > 0)!;
   let stopped = false;
@@ -39,13 +42,18 @@ for (const scenario of ['arrow keys', 'inside lane', 'wide inside lane', 'lost m
         : insideLantern && scenario.includes('lane') ? insideLine(state, scenario === 'inside lane' ? -3 : -5.25) : steering);
       race.setInput(0, courseHopHeld(state));
     }
-    race.update(1 / 120);
+    driver.update(race, 1 / 120, 1);
   }
   const result = race.getSnapshots()[0];
   assert(result.finished, `${scenario}: the player must be able to complete the run.`);
   assert(result.recoveries <= 2, `${scenario}: recovery must not repeat indefinitely.`);
   const lanternRecoveries = race.events.filter(event => event.type === 'recovery' && event.pathDistance! > 86 && event.pathDistance! < 138);
   assert.equal(lanternRecoveries.length, 0, `${scenario}: valid driving inside Lantern Quarter must not reset the car.`);
+  if (withRivals) {
+    const firstFinish = Math.min(...race.getSnapshots().map(state => state.finishTime ?? Infinity));
+    assert(result.finishTime! > firstFinish + 12, 'This ordinary arrow-key run must exercise finishing more than twelve seconds behind the AI.');
+    assert(result.finishTime! < heatDeadline('solo', false, firstFinish), 'The solo timer must let this recovered run reach the finish.');
+  }
   summary.push({ scenario, seconds: result.finishTime!.toFixed(2), recoveries: result.recoveries });
   race.dispose();
 }

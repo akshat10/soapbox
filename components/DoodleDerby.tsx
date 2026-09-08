@@ -6,7 +6,7 @@ import { DEFAULT_BUILDS, isLegalBuild } from '@/game/catalogue';
 import { localTip } from '@/game/advice';
 import { heatPoints, PLAYER_IDS } from '@/game/race';
 import { SOLO_RIVALS, SoloRaceDriver } from '@/game/solo';
-import { sessionCourse, heatDeadline, finishWindow, hopPlayer, steeringPlayer, keyboardSteering } from '@/game/session-rules';
+import { sessionCourse, heatDeadline, finishWindow, hopPlayer, steeringPlayer, keyboardSteering, manualSteering } from '@/game/session-rules';
 import type { LocalMode } from '@/game/solo';
 import type { Blueprint, PlayerId, Stage, VehicleSnapshot } from '@/game/types';
 import type { DerbyPhysics } from '@/game/physics';
@@ -174,7 +174,7 @@ export default function DoodleDerby() {
  function keyboardHop(id:PlayerId){const r=runtime.current;return !!r&&[...heldKeys.current].some(key=>hopPlayer(r.mode,key)===id);}
  function onHold(id:PlayerId,held:boolean){const r=runtime.current;if(r?.stage!=='racing'||r.paused||partyRef.current||(r.mode==='solo'&&id!==0))return;if(held)pointerHops.current.add(id);else pointerHops.current.delete(id);r.physics.setInput(id,held||keyboardHop(id));}
  function onCancelInput(id:PlayerId){pointerHops.current.delete(id);if(!keyboardHop(id))runtime.current?.physics.cancelInput(id);}
- function onSteer(id:PlayerId,value:number){const r=runtime.current;if(!r||id>(r.mode==='solo'?0:1)||r.paused||partyRef.current||!(r.stage==='racing'||r.stage==='countdown'))return;pointerSteering.current.set(id,value);steerPlayer(r,id);}
+ function onSteer(id:PlayerId,value:number){const r=runtime.current;if(!r||id>(r.mode==='solo'?0:1)||r.paused||partyRef.current||!(r.stage==='racing'||r.stage==='countdown'))return;pointerSteering.current.set(id,manualSteering(value));steerPlayer(r,id);}
  function onModeChange(next:LocalMode){const r=runtime.current;if(!r||r.stage!=='garage'||partyRef.current)return;r.mode=next;setMode(next);rematch(r);setSnapshots([]);}
  function onPause(){const r=runtime.current;if(r&&!partyRef.current)r.manualPaused=!r.manualPaused;}
  async function createParty() {
