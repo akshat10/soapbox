@@ -44,6 +44,7 @@ export default function DoodleDerby() {
  const [roomCode, setRoomCode] = useState(''), [players, setPlayers] = useState<PartyPlayer[]>([]);
  const [finishCountdown, setFinishCountdown] = useState<number | null>(null);
  const [muted, setMuted] = useMutePreference(), mutedRef = useRef(false);
+ const raceAudio = useRef<RaceAudio | null>(null);
  const soundtrack = useSoundtrack(muted, paused && (stage === 'racing' || stage === 'countdown'));
  useEffect(() => {
   mutedRef.current = muted;
@@ -58,7 +59,6 @@ export default function DoodleDerby() {
   runtime.current?.renderer.setCameraMode(cameraModeRef.current);
   setCameraMode(cameraModeRef.current);
  }
- const raceAudio = useRef<RaceAudio | null>(null);
  const trackSounds = useRef(new Map<string, HTMLAudioElement>());
  const partyRef = useRef<PartyHost | null>(null), playersRef = useRef<PartyPlayer[]>([]);
  const pointerHops = useRef(new Set<PlayerId>()), pointerSteering = useRef(new Map<PlayerId, number>());
@@ -89,6 +89,7 @@ export default function DoodleDerby() {
   if(!audio){audio=new Audio(`/audio/track/${kind==='ring'?'ring-collect':'boost-whoosh'}.wav`);audio.volume=.3;trackSounds.current.set(kind,audio);}
   audio.currentTime=0;void audio.play().catch(()=>sound(kind==='ring'?1320:560,.15));
  }
+ function onBoost(){const r=runtime.current;if(r?.stage==='racing'&&!r.paused&&!r.manualPaused&&!partyRef.current&&r.mode==='solo'&&r.physics.activateBoost(0))trackSound('boost');}
  function toggleSound() {
   mutedRef.current=!mutedRef.current;setMuted(mutedRef.current);raceAudio.current?.setMuted(mutedRef.current);
   if(mutedRef.current){for(const audio of trackSounds.current.values())audio.pause();}
@@ -235,7 +236,6 @@ export default function DoodleDerby() {
  function onCancelInput(id:PlayerId){pointerHops.current.delete(id);if(!keyboardHop(id))runtime.current?.physics.cancelInput(id);}
  function onSteer(id:PlayerId,value:number){const r=runtime.current;if(!r||id>(r.mode==='solo'?0:1)||r.paused||partyRef.current||!(r.stage==='racing'||r.stage==='countdown'))return;pointerSteering.current.set(id,manualSteering(value));steerPlayer(r,id);}
  function onModeChange(next:LocalMode){const r=runtime.current;if(!r||r.stage!=='garage'||partyRef.current)return;r.mode=next;setMode(next);rematch(r);setSnapshots([]);}
- function onBoost(){const r=runtime.current;if(r?.stage==='racing'&&!r.paused&&!r.manualPaused&&!partyRef.current&&r.mode==='solo'&&r.physics.activateBoost(0))trackSound('boost');}
  function onPause(){const r=runtime.current;if(r&&!partyRef.current)r.manualPaused=!r.manualPaused;}
  async function createParty() {
   const r=runtime.current;
