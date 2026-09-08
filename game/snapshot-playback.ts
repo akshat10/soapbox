@@ -35,7 +35,10 @@ export class SnapshotPlayback {
   private received = 0;
   private lastSample = 0;
   private clock = 0;
-  private offset = 0;
+  private sourceAt = 0;
+  private sourceTime = 0;
+  private sourceRate = 1;
+  private timing: { at: number; time: number }[] = [];
   private interval = 1 / 30;
   private jitter = 0;
   private measuredInterval = false;
@@ -66,7 +69,9 @@ export class SnapshotPlayback {
       this.frames = [next];
       this.clock = state.elapsed;
       this.lastSample = now;
-      this.offset = state.elapsed - now / 1000;
+      this.sourceAt = now;
+      this.sourceTime = state.elapsed;
+      this.timing = [{ at: now, time: state.elapsed }];
       this.playing = false;
       this.poseFloors.clear();
       // Preserve learned cadence through heat transitions and recoveries.
@@ -79,11 +84,19 @@ export class SnapshotPlayback {
           this.interval = mix(this.interval, arrivalInterval, .15);
         }
       }
-      // Filter arrival jitter instead of resetting the render clock for every packet.
-      this.offset = mix(this.offset, state.elapsed - now / 1000, .1);
+      // Host elapsed can advance slower than wall time because its physics step is
+      // capped. Estimate that slope over a short window instead of assuming 1x.
+      const predictedSource = this.sourceTime + (now - this.sourceAt) / 1000 * this.sourceRate;
+      this.timing.push({ at: now, time: state.elapsed });
+      while (this.timing.length > 2 && this.timing[1].at < now - 1000) this.timing.shift();
+      const first = this.timing[0];
+      const observedRate = clamp((state.elapsed - first.time) / ((now - first.at) / 1000), .05, 1.1);
+      this.sourceRate = this.timing.length === 2 ? observedRate : mix(this.sourceRate, observedRate, .5);
+      this.sourceTime = this.timing.length === 2 ? state.elapsed : mix(predictedSource, state.elapsed, .35);
+      this.sourceAt = now;
       this.frames.push(next);
       if (!this.playing) {
-        this.clock = Math.max(this.clock, state.elapsed - this.delayMs / 1000);
+        this.clock = Math.max(this.clock, state.elapsed - this.delayMs / 1000 * this.sourceRate);
         this.lastSample = now;
         this.playing = true;
       }
@@ -102,10 +115,11 @@ export class SnapshotPlayback {
     const dt = clamp((now - this.lastSample) / 1000, 0, .1);
     this.lastSample = Math.max(now, this.lastSample);
     const last = this.frames[this.frames.length - 1];
-    const target = now / 1000 + this.offset - this.delayMs / 1000;
+    const target = this.sourceTime + (now - this.sourceAt) / 1000 * this.sourceRate - this.delayMs / 1000 * this.sourceRate;
     // Modest speed correction absorbs changing network delay without backwards motion.
     const rate = clamp(1 + (target - this.clock) * 2, .8, 1.2);
-    this.clock = Math.min(last.time + MAX_PREDICTION, this.clock + dt * rate);
+    const horizon = MAX_PREDICTION * this.sourceRate;
+    this.clock = Math.max(this.clock, Math.min(last.time + horizon, this.clock + dt * this.sourceRate * rate));
     return state.snapshots.map(authoritative => {
       if (authoritative.finished || authoritative.recovering) return authoritative;
       const time = Math.max(this.clock, this.poseFloors.get(authoritative.id) ?? -Infinity);
@@ -126,7 +140,7 @@ export class SnapshotPlayback {
       if (!old || !old.grounded || !b.grounded || old.jumps !== b.jumps || prior.time < (this.poseFloors.get(authoritative.id) ?? -Infinity)) return authoritative;
       const span = last.time - prior.time;
       if (span <= 0) return authoritative;
-      const ahead = clamp(time - last.time, 0, MAX_PREDICTION);
+      const ahead = clamp(time - last.time, 0, horizon);
       const delta = { x: (b.position.x - old.position.x) / span * ahead, y: (b.position.y - old.position.y) / span * ahead, z: (b.position.z - old.position.z) / span * ahead };
       // Keep even malformed/outlying velocity estimates within a short road segment.
       const distance = Math.hypot(delta.x, delta.y, delta.z);

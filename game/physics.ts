@@ -275,6 +275,7 @@ export class DerbyPhysics {
   }
 
   private updateRacer(racer: Racer): void {
+    if (racer.finished) return;
     const up = racer.chassis.quaternion.vmult(new Vec3(0, 1, 0));
     const tilt = Math.acos(Math.max(-1, Math.min(1, up.y)));
     racer.maxRoll = Math.max(racer.maxRoll, tilt);
@@ -292,6 +293,14 @@ export class DerbyPhysics {
     if (position.z >= FINISH_Z && position.y > groundHeight(FINISH_Z) - 4) {
       racer.finished = true;
       racer.finishTime = this.elapsed;
+      // Preserve the finish pose while rivals continue. Removing the vehicle
+      // also stops its suspension callback, keeping all four wheel poses fixed.
+      this.removeRacer(racer);
+      racer.chassis.velocity.setZero();
+      racer.chassis.angularVelocity.setZero();
+      racer.chassis.force.setZero();
+      racer.chassis.torque.setZero();
+      racer.bufferedRelease = 0;
       racer.held = false;
       racer.charge = 0;
       this.record(racer, 'finish');

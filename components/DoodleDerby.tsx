@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import DerbyUI from './DerbyUI';
+import RaceDiagnostics from './RaceDiagnostics';
+import { raceDiagnostics as diag } from '@/game/race-diagnostics';
 import PhonePartyPanel from './PhonePartyPanel';
 import { DEFAULT_BUILDS, isLegalBuild } from '@/game/catalogue';
 import { localTip } from '@/game/advice';
@@ -79,7 +81,7 @@ export default function DoodleDerby() {
     runtime.current=r;setLoaded(true);
     let previousSnapshots:VehicleSnapshot[]=[];
     function frame(now:number) {
-     if(cancelled)return;const dt=Math.min((now-last)/1000,.05);last=now;r.animation+=dt;
+     if(cancelled)return;diag.phase(r.stage,r.heat,r.paused,!document.hidden);diag.mark('frame',now-last,now);const dt=Math.min((now-last)/1000,.05);last=now;r.animation+=dt;
      const shouldPause=!!partyRef.current&&(document.hidden||!raceConnected(r))&&(r.stage==='racing'||r.stage==='countdown');
      if(shouldPause!==r.paused){r.paused=shouldPause;r.physics.clearInputs();heldKeys.current.clear();setPaused(shouldPause);}
      if(partyRef.current&&(r.stage==='garage'||r.stage==='final')) {
@@ -94,7 +96,7 @@ export default function DoodleDerby() {
       if(Math.ceil(r.countdown)!==before)sound(r.countdown<=0?880:440,.14);
       if(r.countdown<=0){r.stage='racing';r.elapsed=0;r.physics.start();previousSnapshots=[];if(!partyRef.current)for(const key of heldKeys.current)r.physics.setInput(key==='KeyF'?0:1,true);setStage('racing');}
      } else if(!r.paused&&r.stage==='racing') {
-      r.elapsed+=dt;r.physics.update(dt);const result=r.physics.getSnapshots();
+      r.elapsed+=dt;const physicsAt=performance.now();r.physics.update(dt);diag.mark('physics',performance.now()-physicsAt);const result=r.physics.getSnapshots();
       for(const s of result){const prev=previousSnapshots.find(p=>p.id===s.id);if(!prev)continue;
        if(s.jumps>prev.jumps)sound(330+s.id*45,.16);
        else if(s.finished&&!prev.finished)sound(1000,.3);
@@ -112,8 +114,9 @@ export default function DoodleDerby() {
      } else if(partyRef.current&&r.stage==='results') {
       r.podiumTime+=dt;if(r.podiumTime>=PODIUM_SECONDS)nextHeat(r);
      }
+     if(r.stage==='racing'&&!r.paused)diag.mark('simulation',r.elapsed);
      const current=r.physics.getSnapshots();
-     if(r.renderer.parent.clientWidth>0)r.renderer.render(r.stage,current,dt,r.animation);
+     if(r.renderer.parent.clientWidth>0){const drawAt=performance.now();r.renderer.render(r.stage,current,dt,r.animation);diag.mark('draw',performance.now()-drawAt);}
      const live=r.stage==='racing'||r.stage==='countdown';
      if(now-r.lastNetwork>(live?33:150)){r.lastNetwork=now;partyRef.current?.publish(partyState(r));}
      if(live&&now-r.lastPublish>70){r.lastPublish=now;setSnapshots(current);setElapsed(r.elapsed);setFinishCountdown(r.firstFinishAt===null?null:Math.max(0,Math.min(HEAT_LIMIT_SECONDS,r.firstFinishAt+FINISH_WINDOW_SECONDS)-r.elapsed));setCountdown(Math.max(0,Math.ceil(r.countdown)));}
@@ -160,7 +163,7 @@ export default function DoodleDerby() {
  }
  async function closeParty(){const party=partyRef.current;partyRef.current=null;party?.dispose();playersRef.current=[];setPartyOpen(false);setPlayers([]);setRoomCode('');setPartyError('');const r=runtime.current;if(r){r.paused=false;rematch(r);setPaused(false);}try{await party?.close();}catch{}}
  const ready=PLAYER_IDS.map(id=>players.some(p=>p.id===id&&p.connected&&p.ready&&p.readyHeat===heat));
- return <main className="doodle-derby"><div ref={canvasRef} className="derby-canvas" style={{position:'fixed',inset:0}}/>
+ return <main className="doodle-derby"><RaceDiagnostics viewRole="host"/><div ref={canvasRef} className="derby-canvas" style={{position:'fixed',inset:0}}/>
   <DerbyUI stage={stage} builds={builds} racerIds={racerIds} partyPlayers={players} onBuildChange={onBuildChange} onStart={onStart} onNext={()=>runtime.current&&nextHeat(runtime.current)} onRematch={()=>runtime.current&&rematch(runtime.current)} snapshots={snapshots} elapsed={elapsed} countdown={countdown} heat={heat} scores={scores} tips={PLAYER_IDS.map(id=>localTip(snapshots.find(s=>s.id===id)))} onHold={onHold} onReset={onStart} onCancelInput={id=>runtime.current?.physics.cancelInput(id)} loaded={loaded} phoneRoom={roomCode||undefined} phoneReady={ready} onPhoneParty={()=>setPartyOpen(true)} muted={muted} finishCountdown={finishCountdown} onToggleSound={()=>{mutedRef.current=!mutedRef.current;setMuted(mutedRef.current);if(!mutedRef.current)sound(440);}}/>
   {paused&&(stage==='racing'||stage==='countdown')&&<div className="party-pause"><strong>QUICK PIT STOP</strong><p>Keep this spectator screen open and reconnect the racers. The race resumes together.</p><button className="phone-party-button" onClick={()=>setPartyOpen(true)}>ROOM {roomCode}</button></div>}
   <PhonePartyPanel open={partyOpen} onOpenChange={setPartyOpen} code={roomCode||undefined} players={players} busy={partyBusy} error={partyError} onCreate={()=>void createParty()} onClose={()=>void closeParty()}/>
