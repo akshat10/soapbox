@@ -12,7 +12,7 @@ import { ReferenceLighting, createContactShadowTexture } from './reference-light
 import type { Blueprint, PlayerId, Stage, VehicleSnapshot } from './types';
 
 const COLORS = PLAYER_COLORS.map(color => new THREE.Color(color).getHex());
-const MAX_RACERS = 4;
+const MAX_RACERS = 8;
 export const CHASE_CAMERA = {
  fov: 58,
  far: 215,
@@ -52,7 +52,7 @@ export class DerbyRenderer {
  showroom = new THREE.Scene();
  cameras = Array.from({ length: MAX_RACERS }, () => new THREE.PerspectiveCamera(CHASE_CAMERA.fov, 1, 0.1, CHASE_CAMERA.far));
  scenicCameras = Array.from({ length: MAX_RACERS }, () => new THREE.PerspectiveCamera(SCENIC_CAMERA.fov, 1, .1, 1400));
- private cameraMode: RaceCameraMode = 'chase';
+ private cameraMode: RaceCameraMode = 'scenic';
  showroomCamera = new THREE.PerspectiveCamera(35, 1, 0.1, 200);
  cars: Car[] = [];
  previewCars: THREE.Group[] = [];
@@ -160,7 +160,7 @@ export class DerbyRenderer {
     preview.add(w);
    }
    const x = builds.length > 2 ? (i % 2 === 0 ? -3.5 : 3.5) : (i === 0 ? -2 : 2);
-   const z = builds.length > 2 ? (i < 2 ? -3 : 3) : (i === 0 ? -1.2 : 1.2);
+   const z = builds.length > 2 ? Math.floor(i / 2) * 6 - (Math.ceil(builds.length / 2) - 1) * 3 : (i === 0 ? -1.2 : 1.2);
    preview.position.set(x, 0, z);
    preview.rotation.y = i % 2 === 0 ? -0.15 : 0.12;
    this.plinths[i].position.set(x, -0.08, z);

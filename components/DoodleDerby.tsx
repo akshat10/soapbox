@@ -2,13 +2,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import DerbyUI from './DerbyUI';
 import SoundControls from './SoundControls';
+import { RaceAudio } from '@/game/race-audio';
 import { useSoundtrack } from '@/hooks/use-soundtrack';
 import { useMutePreference } from '@/hooks/use-mute-preference';
 import PhonePartyPanel from './PhonePartyPanel';
 import { DEFAULT_BUILDS, isLegalBuild } from '@/game/catalogue';
 import { localTip } from '@/game/advice';
 import { heatPoints, PLAYER_IDS } from '@/game/race';
-import { SOLO_RIVALS, SoloRaceDriver } from '@/game/solo';
+import { SOLO_PLAYER_IDS, SOLO_RIVALS, SoloRaceDriver } from '@/game/solo';
 import { sessionCourse, heatDeadline, finishWindow, hopPlayer, steeringPlayer, keyboardSteering, manualSteering } from '@/game/session-rules';
 import { SoloFeedbackTracker, FEEDBACK_TIMING, type SoloMoment, type SoloSnapshot } from '@/game/solo-presentation';
 import type { LocalMode } from '@/game/solo';
@@ -35,9 +36,9 @@ export default function DoodleDerby() {
  const landingVisible = useRef(true);
  const onLandingChange = useCallback((visible:boolean)=>{landingVisible.current=visible;},[]);
  const [stage, setStage] = useState<Stage>('garage'), [builds, setBuilds] = useState<Blueprint[]>(cloneBuilds), [snapshots, setSnapshots] = useState<VehicleSnapshot[]>([]);
- const [racerIds, setRacerIds] = useState<PlayerId[]>([...PLAYER_IDS]);
+ const [racerIds, setRacerIds] = useState<PlayerId[]>([...SOLO_PLAYER_IDS]);
  const [mode, setMode] = useState<LocalMode>('solo');
- const [elapsed, setElapsed] = useState(0), [countdown, setCountdown] = useState(3), [heat, setHeat] = useState(1), [scores, setScores] = useState([0,0,0,0]);
+ const [elapsed, setElapsed] = useState(0), [countdown, setCountdown] = useState(3), [heat, setHeat] = useState(1), [scores, setScores] = useState(Array(8).fill(0));
  const [loaded, setLoaded] = useState(false), [error, setError] = useState(''), [paused, setPaused] = useState(false);
  const [partyOpen, setPartyOpen] = useState(false), [partyBusy, setPartyBusy] = useState(false), [partyError, setPartyError] = useState('');
  const [roomCode, setRoomCode] = useState(''), [players, setPlayers] = useState<PartyPlayer[]>([]);
@@ -46,16 +47,18 @@ export default function DoodleDerby() {
  const soundtrack = useSoundtrack(muted, paused && (stage === 'racing' || stage === 'countdown'));
  useEffect(() => {
   mutedRef.current = muted;
+  raceAudio.current?.setMuted(muted);
   if (muted) for (const audio of trackSounds.current.values()) audio.pause();
  }, [muted]);
  const [reverseArrows, setReverseArrows] = useState(true), reverseArrowsRef = useRef(true);
  const [raceMoment, setRaceMoment] = useState<SoloMoment | null>(null);
- const [cameraMode, setCameraMode] = useState<RaceCameraMode>('chase'), cameraModeRef = useRef<RaceCameraMode>('chase');
+ const [cameraMode, setCameraMode] = useState<RaceCameraMode>('scenic'), cameraModeRef = useRef<RaceCameraMode>('scenic');
  function toggleCamera() {
   cameraModeRef.current = cameraModeRef.current === 'chase' ? 'scenic' : 'chase';
   runtime.current?.renderer.setCameraMode(cameraModeRef.current);
   setCameraMode(cameraModeRef.current);
  }
+ const raceAudio = useRef<RaceAudio | null>(null);
  const trackSounds = useRef(new Map<string, HTMLAudioElement>());
  const partyRef = useRef<PartyHost | null>(null), playersRef = useRef<PartyPlayer[]>([]);
  const pointerHops = useRef(new Set<PlayerId>()), pointerSteering = useRef(new Map<PlayerId, number>());
@@ -71,12 +74,13 @@ export default function DoodleDerby() {
   const r=runtime.current;if(r?.mode==='solo')steerPlayer(r,0);
  }
  function partyState(r:Runtime):PartyState {
-  return { stage:r.stage,builds:r.builds,racerIds:r.racerIds,snapshots:r.physics.getSnapshots(),elapsed:r.elapsed,countdown:Math.max(0,Math.ceil(r.countdown)),heat:r.heat,scores:r.scores,ready:readiness(r.stage==='final'?1:r.stage==='results'?r.heat+1:r.heat),paused:r.paused,finishCountdown:finishWindow(r.mode,!!partyRef.current,r.firstFinishAt,r.elapsed) };
+  return { stage:r.stage,builds:r.builds.slice(0,4),racerIds:r.racerIds,snapshots:r.physics.getSnapshots(),elapsed:r.elapsed,countdown:Math.max(0,Math.ceil(r.countdown)),heat:r.heat,scores:r.scores.slice(0,4),ready:readiness(r.stage==='final'?1:r.stage==='results'?r.heat+1:r.heat),paused:r.paused,finishCountdown:finishWindow(r.mode,!!partyRef.current,r.firstFinishAt,r.elapsed) };
  }
  function sound(frequency:number,duration=.1) {
   if(mutedRef.current)return;
+  raceAudio.current?.unlock();
   try { const a=audioRef.current??(audioRef.current=new AudioContext()); if(a.state==='suspended')void a.resume();
-   const o=a.createOscillator(),g=a.createGain();o.type='triangle';o.frequency.setValueAtTime(frequency,a.currentTime);o.frequency.exponentialRampToValueAtTime(frequency*.65,a.currentTime+duration);g.gain.setValueAtTime(.04,a.currentTime);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+duration);o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+duration);
+   const o=a.createOscillator(),g=a.createGain();o.type='triangle';o.frequency.setValueAtTime(frequency,a.currentTime);o.frequency.exponentialRampToValueAtTime(frequency*.65,a.currentTime+duration);g.gain.setValueAtTime(.04,a.currentTime);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+duration);o.connect(g);g.connect(a.destination);o.onended=()=>{o.disconnect();g.disconnect();};o.start();o.stop(a.currentTime+duration);
   }catch{}
  }
  function trackSound(kind:'ring'|'boost') {
@@ -86,22 +90,22 @@ export default function DoodleDerby() {
   audio.currentTime=0;void audio.play().catch(()=>sound(kind==='ring'?1320:560,.15));
  }
  function toggleSound() {
-  mutedRef.current=!mutedRef.current;setMuted(mutedRef.current);
+  mutedRef.current=!mutedRef.current;setMuted(mutedRef.current);raceAudio.current?.setMuted(mutedRef.current);
   if(mutedRef.current){for(const audio of trackSounds.current.values())audio.pause();}
   else sound(440);
  }
  function syncGarageRoster(r:Runtime) {
-  const ids=partyRef.current?connectedIds():r.mode==='solo'?[...PLAYER_IDS]:[0,1] as PlayerId[];
+  const ids=partyRef.current?connectedIds():r.mode==='solo'?[...SOLO_PLAYER_IDS]:[0,1] as PlayerId[];
   if(partyRef.current) {
    for(const player of playersRef.current) if(isLegalBuild(player.build)) r.builds[player.id]={...player.build};
    setBuilds([...r.builds]);
   }
   if(!partyRef.current&&r.mode==='solo'){for(const rival of SOLO_RIVALS)r.builds[rival.id]={...rival.build};setBuilds([...r.builds]);}
   r.racerIds=ids;r.readyTime=0;
-  r.physics.reset(r.builds,ids,sessionCourse(!!partyRef.current));r.renderer.setBuilds(partyRef.current||r.mode==='solo'?r.builds:r.builds.slice(0,2));setRacerIds([...ids]);
+  r.physics.reset(r.builds,ids,sessionCourse(!!partyRef.current));r.renderer.setBuilds(partyRef.current?r.builds.slice(0,4):r.mode==='solo'?r.builds:r.builds.slice(0,2));setRacerIds([...ids]);
  }
  function startHeat(r:Runtime) {
-  r.feedback.reset();r.moment=null;setRaceMoment(null);
+  r.feedback.reset();raceAudio.current?.reset();r.moment=null;setRaceMoment(null);
   heldKeys.current.clear();pointerHops.current.clear();pointerSteering.current.clear();r.ai.reset();r.physics.reset(r.builds,r.racerIds);r.stage='countdown';r.manualPaused=false;r.countdown=3;r.elapsed=0;r.paused=false;r.readyTime=0;r.firstFinishAt=null;setFinishCountdown(null);
   setCountdown(3);setElapsed(0);setPaused(false);setStage('countdown');setPartyOpen(false);sound(440);
  }
@@ -110,20 +114,24 @@ export default function DoodleDerby() {
   r.heat++;r.stage='garage';r.physics.clearInputs();setHeat(r.heat);setStage('garage');syncGarageRoster(r);
  }
  function rematch(r:Runtime) {
-  r.stage='garage';r.manualPaused=false;r.paused=false;r.heat=1;r.scores=[0,0,0,0];r.elapsed=0;syncGarageRoster(r);
+  r.stage='garage';r.manualPaused=false;r.paused=false;r.heat=1;r.scores=Array(8).fill(0);r.elapsed=0;syncGarageRoster(r);
   setScores([...r.scores]);setHeat(1);setStage('garage');setElapsed(0);
  }
  useEffect(()=>{
   try{const saved=localStorage.getItem('silicon-racer.reverse-arrows.v1');reverseArrowsRef.current=saved===null||saved==='true';}catch{}
   const sounds=trackSounds.current;
+  const effects = new RaceAudio(); raceAudio.current = effects; effects.setMuted(mutedRef.current);
+  const unlockEffects = () => effects.unlock();
+  window.addEventListener('pointerdown', unlockEffects);
+  window.addEventListener('keydown', unlockEffects);
   let cancelled=false,last=performance.now(),raf=0;
   async function initialize(){
    try {
     const [{DerbyPhysics},{DerbyRenderer},{preloadModels},{loadCourseScene,disposeCourseScene}]=await Promise.all([import('@/game/physics'),import('@/game/renderer'),import('@/game/assets'),import('@/game/course-scene')]);
     const [,courseScene]=await Promise.all([preloadModels(),loadCourseScene()]);if(cancelled||!canvasRef.current){disposeCourseScene(courseScene);return;}
-    const physics=new DerbyPhysics(),renderer=new DerbyRenderer(canvasRef.current,{courseScene}),initial=cloneBuilds();physics.reset(initial,PLAYER_IDS,sessionCourse(false));renderer.setBuilds(initial);
-    const r:Runtime={feedback:new SoloFeedbackTracker(),moment:null,ai:new SoloRaceDriver(),mode:'solo',manualPaused:false,physics,renderer,stage:'garage',elapsed:0,countdown:3,builds:initial,racerIds:[...PLAYER_IDS],lastPublish:0,lastNetwork:0,animation:0,scores:[0,0,0,0],heat:1,paused:false,readyTime:0,podiumTime:0,firstFinishAt:null};
-    runtime.current=r;setReverseArrows(reverseArrowsRef.current);setRaceMoment(null);setStage('garage');setMode('solo');setRacerIds([...PLAYER_IDS]);setBuilds([...initial]);setSnapshots([]);setHeat(1);setScores([...r.scores]);setElapsed(0);setPaused(false);setRoomCode('');setPlayers([]);playersRef.current=[];setPartyOpen(false);setLoaded(true);
+    const physics=new DerbyPhysics(),renderer=new DerbyRenderer(canvasRef.current,{courseScene}),initial=cloneBuilds();physics.reset(initial,SOLO_PLAYER_IDS,sessionCourse(false));renderer.setBuilds(initial);renderer.setCameraMode(cameraModeRef.current);
+    const r:Runtime={feedback:new SoloFeedbackTracker(),moment:null,ai:new SoloRaceDriver(),mode:'solo',manualPaused:false,physics,renderer,stage:'garage',elapsed:0,countdown:3,builds:initial,racerIds:[...SOLO_PLAYER_IDS],lastPublish:0,lastNetwork:0,animation:0,scores:Array(8).fill(0),heat:1,paused:false,readyTime:0,podiumTime:0,firstFinishAt:null};
+    runtime.current=r;setReverseArrows(reverseArrowsRef.current);setRaceMoment(null);setStage('garage');setMode('solo');setRacerIds([...SOLO_PLAYER_IDS]);setBuilds([...initial]);setSnapshots([]);setHeat(1);setScores([...r.scores]);setElapsed(0);setPaused(false);setRoomCode('');setPlayers([]);playersRef.current=[];setPartyOpen(false);setLoaded(true);
     let previousSnapshots:VehicleSnapshot[]=[];
     function frame(now:number) {
      if(cancelled)return;const dt=Math.min((now-last)/1000,.05);last=now;r.animation+=dt;
@@ -161,7 +169,6 @@ export default function DoodleDerby() {
        else if(s.jumps>prev.jumps)sound(330+s.id*45,.16);
        else if(s.finished&&!prev.finished)sound(1000,.3);
        else if(s.recoveries>prev.recoveries)sound(110,.22);
-       else if(s.grounded&&!prev.grounded&&s.jumps>0)sound(170,.05);
       }
       previousSnapshots=result;
       if(r.firstFinishAt===null&&result.some(s=>s.finished))r.firstFinishAt=r.elapsed;
@@ -170,13 +177,14 @@ export default function DoodleDerby() {
       const finishBeatDone=partyRef.current||r.mode!=='solo'||!human?.finished||r.elapsed-(human.finishTime??r.elapsed)>=FEEDBACK_TIMING.brief;
       if((result.every(s=>s.finished)&&finishBeatDone)||r.elapsed>=deadline) {
        r.physics.clearInputs();heldKeys.current.clear();r.stage='results';r.podiumTime=0;
-       const awards=heatPoints(result);r.scores=r.scores.map((n,id)=>n+awards[id]);
+       const awards=heatPoints(result);r.scores=r.scores.map((n,id)=>n+(awards[id]??0));
        setScores([...r.scores]);setStage('results');setSnapshots(result);sound(660,.3);
       }
      } else if(partyRef.current&&r.stage==='results') {
       r.podiumTime+=dt;if(r.podiumTime>=PODIUM_SECONDS)nextHeat(r);
      }
      const current=r.physics.getSnapshots();
+     effects.update(current.find(s=>s.id===0),r.stage==='racing'&&!r.paused,r.physics.events);
      // The homepage has its own overview renderer; only draw the visible scene.
      if(!landingVisible.current&&r.renderer.parent.clientWidth>0)r.renderer.render(r.stage,current,dt,r.animation,!partyRef.current&&r.mode==='solo'?0:undefined);
      const live=r.stage==='racing'||r.stage==='countdown';
@@ -195,6 +203,7 @@ export default function DoodleDerby() {
    const r=runtime.current;if(!r||!(r.stage==='racing'||r.stage==='countdown'))return;
    if(r.mode==='solo'&&!partyRef.current&&e.code==='KeyC'&&!e.repeat&&!e.metaKey&&!e.ctrlKey&&!e.altKey){e.preventDefault();toggleCamera();return;}
    if(partyRef.current)return;
+   if(r.mode==='solo'&&e.code==='KeyZ'&&!e.metaKey&&!e.ctrlKey&&!e.altKey){e.preventDefault();if(!e.repeat)onBoost();return;}
    if(e.code==='Escape'&&!e.repeat){r.manualPaused=!r.manualPaused;return;}
    if(r.paused)return;
    const steeringId=steeringPlayer(r.mode,e.code);
@@ -210,14 +219,14 @@ export default function DoodleDerby() {
   };
   const clear=()=>{held.clear();pointerHops.current.clear();pointerSteering.current.clear();runtime.current?.physics.clearInputs();};
   // A local race pauses when focus leaves; phone gestures remain phone-owned.
-  const blur=()=>{if(!partyRef.current){clear();const r=runtime.current;if(r&&(r.stage==='racing'||r.stage==='countdown'))r.manualPaused=true;}};
-  const visibility=()=>{clear();last=performance.now();const r=runtime.current;if(r&&partyRef.current){r.paused=document.hidden&&(r.stage==='racing'||r.stage==='countdown');setPaused(r.paused);partyRef.current.publish(partyState(r));}};
+  const blur=()=>{effects.update(undefined,false,runtime.current?.physics.events??[]);if(!partyRef.current){clear();const r=runtime.current;if(r&&(r.stage==='racing'||r.stage==='countdown'))r.manualPaused=true;}};
+  const visibility=()=>{if(document.hidden)effects.update(undefined,false,runtime.current?.physics.events??[]);clear();last=performance.now();const r=runtime.current;if(r&&partyRef.current){r.paused=document.hidden&&(r.stage==='racing'||r.stage==='countdown');setPaused(r.paused);partyRef.current.publish(partyState(r));}};
   window.addEventListener('keydown',keydown);window.addEventListener('keyup',keyup);window.addEventListener('blur',blur);document.addEventListener('visibilitychange',visibility);
-  return()=>{cancelled=true;cancelAnimationFrame(raf);clear();window.removeEventListener('keydown',keydown);window.removeEventListener('keyup',keyup);window.removeEventListener('blur',blur);document.removeEventListener('visibilitychange',visibility);partyRef.current?.dispose();partyRef.current=null;runtime.current?.physics.dispose();runtime.current?.renderer.dispose();runtime.current=null;void audioRef.current?.close();audioRef.current=null;for(const audio of sounds.values())audio.pause();sounds.clear();};
+  return()=>{window.removeEventListener('pointerdown',unlockEffects);window.removeEventListener('keydown',unlockEffects);effects.dispose();raceAudio.current=null;cancelled=true;cancelAnimationFrame(raf);clear();window.removeEventListener('keydown',keydown);window.removeEventListener('keyup',keyup);window.removeEventListener('blur',blur);document.removeEventListener('visibilitychange',visibility);partyRef.current?.dispose();partyRef.current=null;runtime.current?.physics.dispose();runtime.current?.renderer.dispose();runtime.current=null;void audioRef.current?.close();audioRef.current=null;for(const audio of sounds.values())audio.pause();sounds.clear();};
  },[]);
  function applyBuild(id:PlayerId,build:Blueprint) {
   const r=runtime.current;if(!r||r.stage!=='garage'||!isLegalBuild(build)||JSON.stringify(r.builds[id])===JSON.stringify(build))return;
-  r.builds=r.builds.map((b,i)=>i===id?{...build}:b);setBuilds([...r.builds]);r.renderer.setBuilds(partyRef.current||r.mode==='solo'?r.builds:r.builds.slice(0,2));r.physics.reset(r.builds,r.racerIds);r.readyTime=0;
+  r.builds=r.builds.map((b,i)=>i===id?{...build}:b);setBuilds([...r.builds]);r.renderer.setBuilds(partyRef.current?r.builds.slice(0,4):r.mode==='solo'?r.builds:r.builds.slice(0,2));r.physics.reset(r.builds,r.racerIds);r.readyTime=0;
  }
  function onBuildChange(id:PlayerId,build:Blueprint){if(!partyRef.current&&(runtime.current?.mode!=='solo'||id===0)){applyBuild(id,build);sound(330,.055);}}
  function onStart(){const r=runtime.current;if(!r||r.racerIds.length<2||!r.racerIds.every(id=>isLegalBuild(r.builds[id])))return;if(partyRef.current&&(!raceConnected(r)||(r.stage==='garage'&&!r.racerIds.every(id=>readiness(r.heat)[id]))))return;startHeat(r);}
@@ -226,6 +235,7 @@ export default function DoodleDerby() {
  function onCancelInput(id:PlayerId){pointerHops.current.delete(id);if(!keyboardHop(id))runtime.current?.physics.cancelInput(id);}
  function onSteer(id:PlayerId,value:number){const r=runtime.current;if(!r||id>(r.mode==='solo'?0:1)||r.paused||partyRef.current||!(r.stage==='racing'||r.stage==='countdown'))return;pointerSteering.current.set(id,manualSteering(value));steerPlayer(r,id);}
  function onModeChange(next:LocalMode){const r=runtime.current;if(!r||r.stage!=='garage'||partyRef.current)return;r.mode=next;setMode(next);rematch(r);setSnapshots([]);}
+ function onBoost(){const r=runtime.current;if(r?.stage==='racing'&&!r.paused&&!r.manualPaused&&!partyRef.current&&r.mode==='solo'&&r.physics.activateBoost(0))trackSound('boost');}
  function onPause(){const r=runtime.current;if(r&&!partyRef.current)r.manualPaused=!r.manualPaused;}
  async function createParty() {
   const r=runtime.current;
@@ -233,7 +243,7 @@ export default function DoodleDerby() {
   if(partyBusy||partyRef.current)return;setPartyBusy(true);setPartyError('');sound(330,.05);
   try {
    const {createHostParty}=await import('@/game/party-client');
-   r.stage='garage';r.physics.clearInputs();r.racerIds=[];r.physics.reset(r.builds,[],sessionCourse(true));r.heat=1;r.scores=[0,0,0,0];r.elapsed=0;r.firstFinishAt=null;
+   r.stage='garage';r.physics.clearInputs();r.racerIds=[];r.physics.reset(r.builds,[],sessionCourse(true));r.heat=1;r.scores=Array(8).fill(0);r.elapsed=0;r.firstFinishAt=null;
    setRacerIds([]);setStage('garage');setHeat(1);setScores([...r.scores]);setElapsed(0);setFinishCountdown(null);
    const party=await createHostParty({
     onPlayers:next=>{playersRef.current=next;setPlayers(next);const current=runtime.current;if(current?.stage==='garage'){
@@ -243,13 +253,13 @@ export default function DoodleDerby() {
     onInput:(id,kind)=>{const current=runtime.current;if(!current)return;if(kind==='cancel'){current.physics.cancelInput(id);return;}if(current.stage==='racing'&&!current.paused&&current.racerIds.includes(id)&&raceConnected(current)&&!document.hidden)current.physics.setInput(id,kind==='hold');},
     onError:message=>setPartyError(message),
    },partyState(r));
-   if(!runtime.current){await party.close();return;}partyRef.current=party;r.renderer.setBuilds(r.builds);setRoomCode(party.code);
+   if(!runtime.current){await party.close();return;}partyRef.current=party;r.renderer.setBuilds(r.builds.slice(0,4));setRoomCode(party.code);
   }catch(e){syncGarageRoster(r);setPartyError(e instanceof Error?e.message:'Could not open a room. Please try again.');}finally{setPartyBusy(false);}
  }
  async function closeParty(){const party=partyRef.current;partyRef.current=null;party?.dispose();playersRef.current=[];setPartyOpen(false);setPlayers([]);setRoomCode('');setPartyError('');const r=runtime.current;if(r){r.paused=false;rematch(r);setPaused(false);}try{await party?.close();}catch{}}
  const ready=PLAYER_IDS.map(id=>players.some(p=>p.id===id&&p.connected&&p.ready&&p.readyHeat===heat));
  return <main className="doodle-derby"><div ref={canvasRef} className="derby-canvas"/>
-  <DerbyUI soundControls={<SoundControls soundtrack={soundtrack} muted={muted} onToggleSound={toggleSound}/>} cameraMode={cameraMode} onToggleCamera={toggleCamera} onLandingChange={onLandingChange} raceMoment={raceMoment} reverseArrows={reverseArrows} onReverseArrowsChange={changeArrowDirection} mode={mode} onModeChange={onModeChange} onPause={onPause} onSteer={onSteer} stage={stage} builds={builds} racerIds={racerIds} partyPlayers={players} onBuildChange={onBuildChange} onStart={onStart} onNext={()=>runtime.current&&nextHeat(runtime.current)} onRematch={()=>runtime.current&&rematch(runtime.current)} snapshots={snapshots} elapsed={elapsed} countdown={countdown} heat={heat} scores={scores} tips={PLAYER_IDS.map(id=>localTip(snapshots.find(s=>s.id===id)))} onHold={onHold} onReset={onStart} onCancelInput={onCancelInput} loaded={loaded} phoneRoom={roomCode||undefined} phoneReady={ready} onPhoneParty={()=>setPartyOpen(true)} muted={muted} finishCountdown={finishCountdown} onToggleSound={toggleSound}/>
+  <DerbyUI onBoost={onBoost} soundControls={<SoundControls soundtrack={soundtrack} muted={muted} onToggleSound={toggleSound}/>} cameraMode={cameraMode} onToggleCamera={toggleCamera} onLandingChange={onLandingChange} raceMoment={raceMoment} reverseArrows={reverseArrows} onReverseArrowsChange={changeArrowDirection} mode={mode} onModeChange={onModeChange} onPause={onPause} onSteer={onSteer} stage={stage} builds={builds} racerIds={racerIds} partyPlayers={players} onBuildChange={onBuildChange} onStart={onStart} onNext={()=>runtime.current&&nextHeat(runtime.current)} onRematch={()=>runtime.current&&rematch(runtime.current)} snapshots={snapshots} elapsed={elapsed} countdown={countdown} heat={heat} scores={scores} tips={PLAYER_IDS.map(id=>localTip(snapshots.find(s=>s.id===id)))} onHold={onHold} onReset={onStart} onCancelInput={onCancelInput} loaded={loaded} phoneRoom={roomCode||undefined} phoneReady={ready} onPhoneParty={()=>setPartyOpen(true)} muted={muted} finishCountdown={finishCountdown} onToggleSound={toggleSound}/>
   {paused&&(stage==='racing'||stage==='countdown')&&<div className="party-pause"><strong>QUICK PIT STOP</strong><p>{roomCode?'Keep this spectator screen open and reconnect the racers. The race resumes together.':'Take a breath. The hill can wait.'}</p>{!roomCode&&mode==='solo'&&<label className="steering-preference"><input type="checkbox" checked={reverseArrows} onChange={event=>changeArrowDirection(event.target.checked)}/><span>Reverse arrow keys</span></label>}<button className="phone-party-button" onClick={()=>roomCode?setPartyOpen(true):onPause()}>{roomCode?`ROOM ${roomCode}`:'Resume race'}</button></div>}
   <PhonePartyPanel open={partyOpen} onOpenChange={setPartyOpen} code={roomCode||undefined} players={players} busy={partyBusy} error={partyError} onCreate={()=>void createParty()} onClose={()=>void closeParty()}/>
   {error&&<div role="alert" style={{position:'fixed',bottom:20,left:20,right:20,zIndex:50,background:'#fff',padding:24,border:'3px solid #222'}}>The game could not start: {error}. Try refreshing in a browser with WebGL enabled.</div>}

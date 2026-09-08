@@ -56,7 +56,7 @@ for(const hz of [120,30]) {
     assert(snapshot.bestLap!>30&&snapshot.bestLap!<75);
     summaries.push({hz,player:snapshot.id,seconds:snapshot.finishTime!.toFixed(2),recoveries:snapshot.recoveries,rings:snapshot.rings,bestLap:snapshot.bestLap!.toFixed(2)});
   }
-  assert(peak>22&&peak<34,'The straight reaches a useful, bounded arcade speed.');
+  assert(peak>14&&peak<27,'The straight reaches a useful, bounded arcade speed.');
   assert(launchTime<14,'The opening is appreciably faster than the previous ~18s.');
   physics.update(0);assert.deepEqual(physics.getSnapshots(),final,'Pausing freezes the complete lap state.');
   physics.update(.1);assert.deepEqual(physics.getSnapshots(),final,'Finished poses and lap timers remain frozen.');

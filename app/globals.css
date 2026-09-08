@@ -579,3 +579,25 @@ body {
  .is-landing .landing-solo-track .landing-copy>p { font-size:13px; }
  .is-landing .landing-controls { gap:7px; font-size:11px; }
 }
+
+/* A separate tap boost keeps hop charging available during an overtake. */
+.solo-action-row { display:flex; gap:10px; width:100%; }
+.solo-hop { width:min(440px,86vw); }
+.solo-action-row .hop-control { flex:1; width:auto; padding:12px; min-width:0; }
+.solo-action-row .hop-control strong { font-size:16px; }
+.solo-action-row .hop-control>svg { display:none; }
+.boost-control { position:relative; overflow:hidden; isolation:isolate; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; width:98px; flex-shrink:0; min-height:67px; border:2px solid #fff; border-radius:20px; background:#224e48; color:#fff; box-shadow:0 5px 0 #133a30,0 12px 30px #163c3233; cursor:pointer; touch-action:manipulation; }
+.boost-control strong { font-size:17px; }
+.boost-control kbd { font-size:12px; font-weight:800; }
+.boost-fill { position:absolute; inset:0; z-index:-1; background:#ce8b22; transform-origin:left; transition:transform .08s linear; }
+.boost-control.is-ready { background:#f3c24b; color:#163c32; }
+.boost-control.is-ready .boost-fill { background:#f3c24b; }
+.boost-control.is-boosting { background:#f3c24b; color:#163c32; }
+.boost-control:disabled { cursor:default; }
+.boost-control:focus-visible { outline:3px solid #3254ee; outline-offset:5px; }
+.boost-control:active:not(:disabled) { transform:translateY(3px); box-shadow:0 2px 0 #133a30; }
+.solo-standings { max-height:calc(100dvh - 280px); overflow:auto; pointer-events:auto; }
+.solo-mode .results-backdrop { align-items:flex-start; }
+.solo-mode .results-card { margin:auto 0; }
+@media(max-width:800px) { .solo-standings { max-height:148px; } .solo-action-row .hop-control kbd { font-size:10px; padding:4px; } .solo-action-row .hop-control { gap:8px; } .solo-action-row .hop-control strong { font-size:15px; } .boost-control { width:84px; } }
+@media(max-height:540px) and (min-width:801px) { .solo-standings { max-height:200px; } }
