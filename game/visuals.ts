@@ -419,8 +419,8 @@ function sign(group: THREE.Group, text: string, x: number, y: number, z: number,
   group.add(result);
 }
 
-function paintedLady(group: THREE.Group, x: number, y: number, z: number, color: number, index: number): void {
-  const authored = cloneModel('house', { Facade: color });
+function paintedLady(group: THREE.Group, x: number, y: number, z: number, color: number, index: number, lowDetail: boolean): void {
+  const authored = lowDetail ? undefined : cloneModel('house', { Facade: color });
   if (authored) {
     authored.position.set(x, y, z);
     authored.rotation.y = Math.PI / 2;
@@ -503,9 +503,9 @@ function goldenGate(group: THREE.Group): void {
   group.add(boat);
 }
 
-function sanFrancisco(group: THREE.Group): void {
+function sanFrancisco(group: THREE.Group, lowDetail: boolean): void {
   goldenGate(group);
-  for (let i = 0; i < 7; i++) paintedLady(group, -17 - (i % 2) * 0.8, heightAt(15 + i * 7.1) - 0.6, 15 + i * 7.1, [0xe8bb82, 0x9bbca8, 0xce99aa, 0xb5b5d7, 0xe0c996, 0x88b4c2, 0xd0ad8a][i], i);
+  for (let i = 0; i < 7; i++) paintedLady(group, -17 - (i % 2) * 0.8, heightAt(15 + i * 7.1) - 0.6, 15 + i * 7.1, [0xe8bb82, 0x9bbca8, 0xce99aa, 0xb5b5d7, 0xe0c996, 0x88b4c2, 0xd0ad8a][i], i, lowDetail);
 
   // Brick garden borders evoke Lombard Street without changing the drivable surface.
   for (let i = 0; i < 22; i++) {
@@ -552,8 +552,8 @@ function sanFrancisco(group: THREE.Group): void {
   }
 }
 
-/** Road meshes exactly match the physics boxes; everything beside them is scenery. */
-export function createTrackScene(): THREE.Group {
+/** Road meshes match the physics boxes; low-detail scenery preserves the SF house silhouettes. */
+export function createTrackScene({ lowDetail = false }: { lowDetail?: boolean } = {}): THREE.Group {
   const group = new THREE.Group();
   group.name = 'soapbox-world';
   const minZ = Math.min(...TRACK_PIECES.map((p) => p.position[2] - p.size[2] / 2));
@@ -645,6 +645,6 @@ export function createTrackScene(): THREE.Group {
     box(group, 2.3, 0.13, 0.85, 0xe3c39b, side * 11.2, startY + 0.85, startZ - 4.5);
     for (const s of [-1, 1]) box(group, 0.1, 0.9, 0.7, 0x987958, side * 11.2 + s * 0.85, startY + 0.4, startZ - 4.5);
   }
-  sanFrancisco(group);
+  sanFrancisco(group, lowDetail);
   return group;
 }

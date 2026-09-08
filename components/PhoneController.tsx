@@ -43,6 +43,7 @@ export default function PhoneController() {
   const controller = useRef<Controller | null>(null);
   const surface = useRef<HTMLElement | null>(null);
   const stateRef = useRef<PartyState | null>(null);
+  const lastHudUpdate = useRef(0);
   const pendingBuild = useRef<Blueprint | null>(null);
   const pendingReady = useRef<boolean | null>(null);
   const pendingReadyHeat = useRef(0);
@@ -139,14 +140,20 @@ export default function PhoneController() {
           if (next.stage !== previous?.stage || next.paused) cancelHold();
           if (next.stage === 'garage' && previous?.stage !== 'garage') { setGarageStep('ride'); setBrowseRides(false); }
           stateRef.current = next;
-          setRoom(next);
+          // Poses go straight to the scene ref. Reconcile the HUD at 10 Hz,
+          // while phase, pause, readiness and results remain immediate.
+          const now = performance.now();
+          const immediate = !previous || next.stage !== previous.stage || next.heat !== previous.heat
+            || next.paused !== previous.paused || next.ready.some((ready, id) => ready !== previous.ready[id])
+            || next.scores.some((score, id) => score !== previous.scores[id]);
+          if (immediate || now - lastHudUpdate.current >= 100) { lastHudUpdate.current = now; setRoom(next); }
           const own = controller.current?.playerId;
           if (own == null) return;
           if (held.current && next.snapshots.some((item) => item.id === own && item.finished)) cancelHold();
           const serverBuild = next.builds[own];
           if (serverBuild && (!pendingBuild.current || sameBuild(serverBuild, pendingBuild.current) || next.stage !== 'garage')) {
             pendingBuild.current = null;
-            setBuild(serverBuild);
+            setBuild(current => sameBuild(current, serverBuild) ? current : serverBuild);
           }
           const readyHeat = next.stage === 'final' || next.stage === 'results' && next.heat === 3 ? 1 : next.stage === 'results' ? next.heat + 1 : next.heat;
           if (pendingReadyHeat.current === readyHeat && pendingReady.current === next.ready[own] || (next.stage === 'countdown' || next.stage === 'racing') && next.racerIds.includes(own)) {
@@ -286,7 +293,7 @@ export default function PhoneController() {
   const statusText = !linked ? 'RECONNECTING' : room?.paused ? 'PIT STOP' : snapshot?.finished ? 'FINISHED!' : snapshot?.recovering ? 'RESETTING…' : pressed ? 'RELEASE TO HOP' : charge > 5 ? 'RELEASE TO HOP' : 'HOLD TO CHARGE';
 
   return <main ref={surface} className={`phone-controller phone-player-${player} phone-stage-${waitingForHeat ? 'waiting' : stage || 'waiting'}`} style={{ '--player-color': COLORS[player] } as CSSProperties}>
-    {room && <PhoneRaceView state={room} player={player} onReady={setSceneReady}/>}
+    {room && <PhoneRaceView state={room} stateSource={stateRef} player={player} onReady={setSceneReady}/>}
     <div className="phone-shell">
       <header className="phone-header phone-connected-header"><PhoneLogo/><div className="phone-room-id"><span>ROOM</span><strong>{roomCode}</strong></div><Button variant="ghost" className="phone-leave" onClick={leave}>Leave</Button></header>
       <div className="phone-identity"><span className="player-badge">P{player + 1}</span><div><span>YOU’RE DRIVING FOR</span><strong>{NAMES[player]}</strong></div><output className={`phone-connection ${linked ? 'is-linked' : ''}`}>{linked ? <Wifi size={15}/> : <WifiOff size={15}/>}<span>{linked ? 'CONNECTED' : 'RECONNECTING'}</span></output></div>

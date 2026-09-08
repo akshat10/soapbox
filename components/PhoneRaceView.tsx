@@ -1,73 +1,75 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { PartyState } from '@/game/party-types';
 import type { DerbyRenderer } from '@/game/renderer';
-import type { PlayerId, Pose, Quat, Vec3, VehicleSnapshot } from '@/game/types';
+import type { PlayerId } from '@/game/types';
+import { SnapshotPlayback } from '@/game/snapshot-playback';
 
-const BLEND_MS = 85;
-const mix = (a: number, b: number, amount: number) => a + (b - a) * amount;
-const mixPoint = (a: Vec3, b: Vec3, amount: number): Vec3 => ({ x: mix(a.x, b.x, amount), y: mix(a.y, b.y, amount), z: mix(a.z, b.z, amount) });
-function mixQuaternion(a: Quat, b: Quat, amount: number): Quat {
-  const sign = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w < 0 ? -1 : 1;
-  const value = { x: mix(a.x, b.x * sign, amount), y: mix(a.y, b.y * sign, amount), z: mix(a.z, b.z * sign, amount), w: mix(a.w, b.w * sign, amount) };
-  const length = Math.hypot(value.x, value.y, value.z, value.w) || 1;
-  return { x: value.x / length, y: value.y / length, z: value.z / length, w: value.w / length };
-}
-const mixPose = (from: Pose, to: Pose, amount: number): Pose => ({ position: mixPoint(from.position, to.position, amount), quaternion: mixQuaternion(from.quaternion, to.quaternion, amount) });
-function smoothSnapshots(from: VehicleSnapshot[], to: VehicleSnapshot[], amount: number): VehicleSnapshot[] {
-  return to.map((next) => {
-    const previous = from.find((item) => item.id === next.id);
-    if (!previous || previous.recovering !== next.recovering || Math.abs(previous.position.z - next.position.z) > 12) return next;
-    return { ...next, ...mixPose(previous, next, amount), wheels: next.wheels.map((wheel, index) => previous.wheels[index] ? mixPose(previous.wheels[index], wheel, amount) : wheel) };
-  });
-}
+const FRAME_MS = 1000 / 60;
 
-/** The shared screen owns physics. Phones only draw its poses between updates. */
-export default function PhoneRaceView({ state, player, onReady }: { state: PartyState; player: PlayerId; onReady: (ready: boolean) => void }) {
+/** Physics stays on the host. The scene reads poses directly, independent of HUD renders. */
+export default function PhoneRaceView({ state, stateSource, player, onReady }: {
+  state: PartyState; stateSource?: RefObject<PartyState | null>; player: PlayerId; onReady: (ready: boolean) => void;
+}) {
   const parent = useRef<HTMLDivElement>(null);
   const renderer = useRef<DerbyRenderer | null>(null);
-  const stateRef = useRef(state);
-  const rendered = useRef<VehicleSnapshot[]>(state.snapshots);
-  const blend = useRef({ from: state.snapshots, to: state.snapshots, at: 0 });
-  const buildKey = useRef('');
+  const fallbackState = useRef(state);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const previous = stateRef.current;
-    const newRound = previous.heat !== state.heat || previous.stage === 'garage' && state.stage === 'countdown';
-    blend.current = { from: newRound ? state.snapshots : rendered.current, to: state.snapshots, at: performance.now() };
-    stateRef.current = state;
-  }, [state]);
+  useEffect(() => { fallbackState.current = state; }, [state]);
 
   useEffect(() => {
     let cancelled = false;
     let animation = 0;
-    let last = performance.now();
+    let lastDraw = 0, lastFrame = 0, frameCredit = 0;
+    let qualityTime = 0, qualityFrames = 0;
+    let buildKey = '';
+    let lastPacket: PartyState | null = null;
+    const playback = new SnapshotPlayback();
     async function start() {
       try {
         const [{ DerbyRenderer }, { preloadModels }] = await Promise.all([import('@/game/renderer'), import('@/game/assets')]);
         await preloadModels();
         if (cancelled || !parent.current) return;
-        const scene = new DerbyRenderer(parent.current);
-        scene.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
-        scene.renderer.shadowMap.enabled = false;
-        scene.resize();
+        const scene = new DerbyRenderer(parent.current, { profile: 'phone' });
         renderer.current = scene;
         setLoading(false);
         onReady(true);
         function frame(now: number) {
           if (cancelled) return;
-          const state = stateRef.current;
-          const dt = Math.min((now - last) / 1000, .05);
-          last = now;
-          const key = JSON.stringify(state.builds);
-          if (key !== buildKey.current) { scene.setBuilds(state.builds); buildKey.current = key; }
-          const packet = blend.current;
-          rendered.current = smoothSnapshots(packet.from, packet.to, Math.min(1, Math.max(0, (now - packet.at) / BLEND_MS)));
-          if (!document.hidden && state.racerIds.includes(player) && (state.stage === 'countdown' || state.stage === 'racing')) scene.render(state.stage, rendered.current, dt, now / 1000, player);
           animation = requestAnimationFrame(frame);
+          const frameElapsed = lastFrame ? now - lastFrame : FRAME_MS;
+          lastFrame = now;
+          const current = stateSource?.current ?? fallbackState.current;
+          if (document.hidden) { lastDraw = now; frameCredit = 0; qualityTime = 0; qualityFrames = 0; return; }
+          if (lastPacket !== current) {
+            playback.push(current, now);
+            lastPacket = current;
+            const key = JSON.stringify(current.builds);
+            if (key !== buildKey) { scene.setBuilds(current.builds); buildKey = key; }
+          }
+          const active = current.racerIds.includes(player) && (current.stage === 'countdown' || current.stage === 'racing');
+          if (!active) { lastDraw = now; frameCredit = 0; qualityTime = 0; qualityFrames = 0; return; }
+          const elapsed = now - lastDraw;
+          // ProMotion displays need no more than 60 scene frames per second.
+          frameCredit += Math.min(frameElapsed, 250);
+          if (frameCredit < FRAME_MS - .25) return;
+          frameCredit %= FRAME_MS;
+          const dt = lastDraw ? Math.min(elapsed / 1000, .05) : 1 / 60;
+          lastDraw = now;
+          scene.render(current.stage, playback.sample(now), dt, now / 1000, player);
+          // Reduce fill cost only when sustained frame delivery is slow. Never
+          // rebuild a scene or increase resolution mid-race on a warm phone.
+          if (elapsed > 0) { qualityTime += Math.min(elapsed, 250); qualityFrames++; }
+          if (qualityTime >= 2000) {
+            if (qualityTime / qualityFrames > 25 && scene.renderer.getPixelRatio() > .7) {
+              scene.renderer.setPixelRatio(Math.max(.7, scene.renderer.getPixelRatio() - .15));
+              scene.resize();
+            }
+            qualityTime = 0; qualityFrames = 0;
+          }
         }
         animation = requestAnimationFrame(frame);
       } catch {
@@ -75,8 +77,8 @@ export default function PhoneRaceView({ state, player, onReady }: { state: Party
       }
     }
     void start();
-    return () => { cancelled = true; cancelAnimationFrame(animation); renderer.current?.dispose(); renderer.current = null; buildKey.current = ''; };
-  }, [player, onReady]);
+    return () => { cancelled = true; cancelAnimationFrame(animation); renderer.current?.dispose(); renderer.current = null; };
+  }, [player, onReady, stateSource]);
 
   return <div className="phone-race-viewport" aria-label="Your live 3D race view">
     <div ref={parent} className="phone-race-canvas"/>
