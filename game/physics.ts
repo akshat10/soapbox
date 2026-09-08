@@ -234,7 +234,8 @@ export class DerbyPhysics {
           const contact = wheel.isInContact;
           racer.vehicle.updateWheelTransform(i);
           wheel.isInContact = contact;
-          return { position: { ...wheel.worldTransform.position }, quaternion: this.quat(wheel.worldTransform.quaternion) };
+          const p = wheel.worldTransform.position;
+          return { position: { x: p.x, y: p.y, z: p.z }, quaternion: this.quat(wheel.worldTransform.quaternion) };
         }),
         speed: chassis.velocity.length(),
         progress: Math.max(0, Math.min(1, (chassis.position.z - START_Z) / (FINISH_Z - START_Z))),
@@ -266,7 +267,7 @@ export class DerbyPhysics {
     this.running = false;
     for (const racer of this.racers.values()) this.removeRacer(racer);
     this.racers.clear();
-    for (const body of [...this.world.bodies]) this.world.removeBody(body);
+    while (this.world.bodies.length > 0) this.world.removeBody(this.world.bodies[0]);
   }
 
   private updateRacer(racer: Racer): void {
