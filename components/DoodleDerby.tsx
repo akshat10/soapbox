@@ -20,7 +20,7 @@ export default function DoodleDerby(){
    try{const [{DerbyPhysics},{DerbyRenderer}]=await Promise.all([import('@/game/physics'),import('@/game/renderer')]);if(cancelled||!canvasRef.current)return;
     const physics=new DerbyPhysics(),renderer=new DerbyRenderer(canvasRef.current);const initial=DEFAULT_BUILDS.map(b=>({...b}));physics.reset(initial);renderer.setBuilds(initial);
     const r:Runtime={physics,renderer,stage:'garage',elapsed:0,countdown:3,builds:initial,lastPublish:0,animation:0,scores:[0,0],heat:1};runtime.current=r;setLoaded(true);
-    let previousJumps=[0,0],lastCount=3;
+    const previousJumps=[0,0];let lastCount=3;
     function frame(now:number){if(cancelled)return;const dt=Math.min((now-last)/1000,.05);last=now;r.animation+=dt;
      if(r.stage==='countdown'){r.physics.update(dt);r.countdown-=dt;const digit=Math.ceil(r.countdown);if(digit!==lastCount){sound(digit===0?700:440);lastCount=digit;}if(r.countdown<=0){r.stage='racing';r.elapsed=0;r.physics.start();for(const key of heldKeys.current)r.physics.setInput(key==='KeyF'?0:1,true);setStage('racing');}}
      else if(r.stage==='racing'){
