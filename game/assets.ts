@@ -5,8 +5,14 @@ const FILES = {
   toaster: '/models/toast-malone.glb',
   house: '/models/painted-lady.glb',
   wheel: '/models/street-wheel.glb',
+  sourdough: '/models/sf/sourdough.glb',
+  mission_burrito: '/models/sf/mission_burrito.glb',
+  painted_porch: '/models/sf/painted_porch.glb',
+  skate: '/models/sf/skate.glb',
+  scooter: '/models/sf/scooter.glb',
+  transit_disc: '/models/sf/transit_disc.glb',
 } as const;
-type AssetId = keyof typeof FILES;
+export type AssetId = keyof typeof FILES;
 const sources = new Map<AssetId, THREE.Group>();
 let loading: Promise<void> | undefined;
 

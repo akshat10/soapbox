@@ -2,6 +2,7 @@
 
 import { DEFAULT_BUILDS, isLegalBuild } from '@/game/catalogue';
 import type { Blueprint, PlayerId } from '@/game/types';
+import { MAX_PARTY_PLAYERS } from '@/game/party-types';
 import type {
   ControllerCallbacks, ControllerPacket, HostCallbacks, HostIdentity, HostReply,
   InputKind, PartyConnection, PartyIdentity, PartyInput, PartyPlayer, PartyState, PlayerReply,
@@ -15,6 +16,7 @@ const REQUEST_TIMEOUT_MS = 8_000;
 const MAX_RTC_BUFFER = 16_384;
 const CONTROLLER_LEASE_MS = 2_200;
 const HOST_LEASE_MS = 4_500;
+const DIRECT_FRESH_MS = 1_000;
 
 export class PartyApiError extends Error {
   constructor(message: string, public status: number) {
@@ -98,7 +100,7 @@ function safeSend(channel: RTCDataChannel | undefined, value: unknown): boolean 
 }
 
 function readPacket(data: unknown): unknown {
-  if (typeof data !== 'string' || data.length > 32_768) return null;
+  if (typeof data !== 'string' || data.length > 131_072) return null;
   try { return JSON.parse(data); } catch { return null; }
 }
 
@@ -127,8 +129,11 @@ function isControllerPacket(value: unknown): value is ControllerPacket {
 
 function isPartyState(value: unknown): value is PartyState {
   return isRecord(value) && ['garage', 'countdown', 'racing', 'results', 'final'].includes(String(value.stage))
-    && Array.isArray(value.builds) && value.builds.length === 2 && value.builds.every(legalBlueprint)
+    && Array.isArray(value.builds) && value.builds.length >= 2 && value.builds.length <= MAX_PARTY_PLAYERS && value.builds.every(legalBlueprint)
     && Array.isArray(value.snapshots) && Array.isArray(value.scores) && Array.isArray(value.ready)
+    && Array.isArray(value.racerIds) && value.racerIds.length <= MAX_PARTY_PLAYERS
+    && value.racerIds.every(id => Number.isInteger(id) && id >= 0 && id < MAX_PARTY_PLAYERS)
+    && (value.revision === undefined || validSequence(value.revision))
     && typeof value.heat === 'number' && typeof value.paused === 'boolean';
 }
 
@@ -158,6 +163,7 @@ interface HostPeer {
   player: PartyPlayer;
   lastPacketAt: number;
   lastInputSeq: number;
+  lastDirectPacketAt: number;
   peer?: RTCPeerConnection;
   channel?: RTCDataChannel;
   offerKey: string;
@@ -172,8 +178,9 @@ export class PartyHost {
   private callbacks: HostCallbacks;
   private poll = new PollLoop();
   private leaseTimer: ReturnType<typeof setInterval>;
-  private peers: [HostPeer, HostPeer];
+  private peers: HostPeer[];
   private state: PartyState;
+  private stateRevision = 0;
   private disposed = false;
   private lastBroadcast = 0;
   private lastPlayersKey = '';
@@ -185,27 +192,33 @@ export class PartyHost {
     this.token = identity.token;
     this.expiresAt = identity.expiresAt;
     this.callbacks = callbacks;
-    this.state = initialState;
+    this.state = { ...initialState, revision: this.stateRevision };
     this.api = api;
     const makePeer = (id: PlayerId): HostPeer => ({
-      player: { id, connected: false, build: { ...(initialState.builds[id] ?? DEFAULT_BUILDS[id]) }, ready: false,
+      player: { id, connected: false, build: { ...(initialState.builds[id] ?? DEFAULT_BUILDS[id % DEFAULT_BUILDS.length]) }, ready: false,
         readyHeat: 0, seq: -1, events: [], offer: null, lastSeen: 0 },
-      lastPacketAt: 0, lastInputSeq: -1, offerKey: '',
+      lastPacketAt: 0, lastInputSeq: -1, lastDirectPacketAt: 0, offerKey: '',
     });
-    this.peers = [makePeer(0), makePeer(1)];
+    this.peers = Array.from({ length: MAX_PARTY_PLAYERS }, (_, id) => makePeer(id as PlayerId));
     this.leaseTimer = setInterval(() => this.checkLeases(), 200);
-    this.poll.start(() => this.sync(), () => this.peers.every(peer => peer.channel?.readyState === 'open') ? 700 : 100);
+    this.poll.start(() => this.sync(), () => {
+      const racing = this.state.stage === 'racing' || this.state.stage === 'countdown';
+      const connected = this.peers.filter(peer => peer.player.connected);
+      const direct = connected.length > 0 && connected.every(peer => peer.channel?.readyState === 'open'
+        && Date.now() - peer.lastDirectPacketAt < DIRECT_FRESH_MS);
+      return !racing && direct ? 500 : 80;
+    });
     this.notifyPlayers();
   }
 
   publish(state: PartyState) {
     if (this.disposed) return;
     const stageChanged = this.state.stage !== state.stage || this.state.heat !== state.heat || this.state.paused !== state.paused;
-    this.state = state;
+    this.state = { ...state, revision: ++this.stateRevision };
     const now = performance.now();
-    if (stageChanged || now - this.lastBroadcast >= 80) {
+    if (stageChanged || now - this.lastBroadcast >= 33) {
       this.lastBroadcast = now;
-      for (const peer of this.peers) safeSend(peer.channel, { type: 'state', state });
+      for (const peer of this.peers) safeSend(peer.channel, { type: 'state', state: this.state });
     }
     if (stageChanged) this.poll.wake();
   }
@@ -268,7 +281,7 @@ export class PartyHost {
       if (this.disposed) return;
       this.lastError = '';
       for (const player of reply.players ?? []) {
-        if (player.id !== 0 && player.id !== 1) continue;
+        if (!Number.isInteger(player.id) || player.id < 0 || player.id >= MAX_PARTY_PLAYERS) continue;
         if (player.connected && Date.now() - player.lastSeen < CONTROLLER_LEASE_MS) {
           this.acceptPacket(player.id, player, player.lastSeen);
         }
@@ -304,14 +317,16 @@ export class PartyHost {
         if (slot.peer !== peer || this.disposed) return;
         const parsed = readPacket(message.data);
         if (isRecord(parsed) && parsed.type === 'controller' && isControllerPacket(parsed.packet)) {
-          this.acceptPacket(id, parsed.packet, Date.now());
+          slot.lastDirectPacketAt = Date.now();
+          this.acceptPacket(id, parsed.packet, slot.lastDirectPacketAt);
         }
       };
       event.channel.onopen = () => safeSend(event.channel, { type: 'state', state: this.state });
       event.channel.onclose = () => {
         if (slot.peer === peer && !this.disposed) {
-          this.callbacks.onInput(id, 'cancel');
-          slot.lastInputSeq = Math.max(slot.lastInputSeq, slot.player.seq);
+          // A route change must preserve a held spring while the relay is healthy.
+          // The controller lease still cancels input if both routes disappear.
+          slot.lastDirectPacketAt = 0;
           this.poll.wake();
         }
       };
@@ -382,6 +397,7 @@ export class PartyController {
   private lastHostSeen = 0;
   private lastDirectStateAt = 0;
   private latestState: PartyState | null = null;
+  private latestStateRevision = -1;
   private disposed = false;
   private terminal = false;
   private visibility = () => { if (document.visibilityState !== 'visible') this.cancelForLifecycle(); };
@@ -404,9 +420,14 @@ export class PartyController {
       if (this.disposed || this.terminal) return;
       if (this.channel?.readyState === 'open') this.sendDirect();
       if (this.lastHostSeen && Date.now() - this.lastHostSeen > HOST_LEASE_MS) this.setConnection('disconnected');
+      else if (this.connection === 'direct' && !this.directIsFresh()) {
+        this.setConnection('relay');
+        this.poll.wake();
+      }
       if ((!this.peer || this.peer.connectionState === 'failed') && Date.now() > this.nextRtcAttempt) void this.prepareOffer();
     }, 350);
-    this.poll.start(() => this.sync(), () => this.connection === 'direct' ? 800 : 200);
+    this.poll.start(() => this.sync(), () => this.connection === 'direct' ? 800
+      : this.latestState?.stage === 'racing' || this.latestState?.stage === 'countdown' ? 100 : 200);
     void this.prepareOffer();
   }
 
@@ -423,17 +444,21 @@ export class PartyController {
   }
 
   setBuild(build: Blueprint) {
-    if (this.disposed || this.terminal || !legalBlueprint(build) || this.latestState?.stage !== 'garage') return;
+    if (this.disposed || this.terminal || !legalBlueprint(build) || !this.latestState || !['garage', 'results', 'final'].includes(this.latestState.stage)) return;
     this.build = { ...build };
     this.ready = false;
     this.readyHeat = 0;
     this.changed();
   }
 
-  setReady(ready: boolean) {
-    if (this.disposed || this.terminal || !this.latestState || this.latestState.stage !== 'garage') return;
+  setReady(ready: boolean, heat?: number) {
+    if (this.disposed || this.terminal || !this.latestState
+      || !['garage', 'results', 'final'].includes(this.latestState.stage)) return;
+    const nextHeat = heat ?? (this.latestState.stage === 'results' ? this.latestState.heat + 1
+      : this.latestState.stage === 'final' ? 1 : this.latestState.heat);
+    if (!Number.isInteger(nextHeat) || nextHeat < 1 || nextHeat > 3) return;
     this.ready = ready;
-    this.readyHeat = ready ? this.latestState.heat : 0;
+    this.readyHeat = ready ? nextHeat : 0;
     this.changed();
   }
 
@@ -455,7 +480,15 @@ export class PartyController {
 
   private changed() {
     if (this.channel?.readyState === 'open') this.sendDirect();
-    else this.poll.wake();
+    // A stalled RTC channel can still report open. Relay every gesture immediately;
+    // the host's shared sequence fence makes the two routes deliver it only once.
+    this.poll.wake();
+  }
+
+  private directIsFresh() {
+    return this.channel?.readyState === 'open'
+      && this.peer?.connectionState !== 'disconnected' && this.peer?.connectionState !== 'failed'
+      && Date.now() - this.lastDirectStateAt < DIRECT_FRESH_MS;
   }
 
   private sendDirect() {
@@ -466,20 +499,25 @@ export class PartyController {
   private receiveState(state: PartyState, direct: boolean) {
     if (this.disposed || !isPartyState(state)) return;
     const now = Date.now();
-    if (!direct && now - this.lastDirectStateAt < 1_300) return;
+    const revision = state.revision;
+    if (revision === undefined ? this.latestStateRevision >= 0 : revision < this.latestStateRevision) return;
+    if (!direct && this.directIsFresh() && (revision === undefined || revision <= this.latestStateRevision)) return;
+    if (revision !== undefined) this.latestStateRevision = revision;
     if (direct) this.lastDirectStateAt = now;
     this.lastHostSeen = now;
     const oldState = this.latestState;
     this.latestState = state;
     if (state.paused && !oldState?.paused) this.input('cancel');
     if (state.stage === 'garage' && (oldState?.heat !== state.heat || oldState?.stage !== 'garage')) {
-      this.ready = false;
-      this.readyHeat = 0;
-      this.build = { ...state.builds[this.playerId] };
-      this.changed();
+      if (this.readyHeat !== state.heat) {
+        this.ready = false;
+        this.readyHeat = 0;
+        this.build = { ...(state.builds[this.playerId] ?? this.build) };
+        this.changed();
+      }
     }
     this.callbacks.onState(state);
-    this.setConnection(direct || this.channel?.readyState === 'open' ? 'direct' : 'relay');
+    this.setConnection(direct || this.directIsFresh() ? 'direct' : 'relay');
   }
 
   private async sync() {
@@ -534,14 +572,12 @@ export class PartyController {
     };
     channel.onclose = () => {
       if (this.disposed || this.peer !== peer) return;
-      this.input('cancel');
       this.setConnection(Date.now() - this.lastHostSeen < HOST_LEASE_MS ? 'relay' : 'disconnected');
       this.poll.wake();
     };
     peer.onconnectionstatechange = () => {
       if (this.disposed || this.peer !== peer) return;
       if (peer.connectionState === 'failed') {
-        this.input('cancel');
         channel.close();
         this.peer = undefined;
         peer.close();

@@ -1,0 +1,98 @@
+{
+  "name": "Silicon Racer",
+  "tagline": "Big ideas. Bad brakes.",
+  "generated_with": "Built-in ImageGen",
+  "selection_status": "User selected option 3; refined splash artwork produced",
+  "options": [
+    {
+      "displayed_option": 1,
+      "direction": "Hill Climb Arcade",
+      "file": "01-hill-climb-arcade.png",
+      "source": "exec-2d117f0e-c31f-4968-afc4-492127a981bd.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "ae0d2a053b43ec0414773246284ecff66a07c93a97ae9472b1391e4226f14eee"
+    },
+    {
+      "displayed_option": 2,
+      "direction": "Pre-Revenue Racing",
+      "file": "02-pre-revenue-racing.png",
+      "source": "exec-e6e4aad4-a1d2-4b7e-a060-68290f206be3.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "7967050a1228a6652c158e5b1f62bda26c21f8960f467dcdeee3bca8fd51a10e"
+    },
+    {
+      "displayed_option": 3,
+      "direction": "San Francisco Soapbox Club",
+      "file": "03-sf-soapbox-club.png",
+      "source": "exec-ee95419b-9fd3-49b2-b9f5-cb78c23674eb.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "11b2d0b85b79a6e4b36165e5638c3c9c0258e31799ed609aa19013ebd5f288ec"
+    }
+  ],
+  "selected_option": 3,
+  "selected_direction": "San Francisco Soapbox Club",
+  "splash_revision": {
+    "file": "silicon-racer-splash-v2.png",
+    "source": "exec-fdecfaec-7fdb-44db-9d90-d43b36e86794.png",
+    "base_image": "03-sf-soapbox-club.png",
+    "requested_dimensions": [
+      2048,
+      1152
+    ],
+    "actual_dimensions": [
+      1672,
+      941
+    ],
+    "sha256": "c1f356a35004cae91db9517f6ed889f09ee0bf507be2e4f28130d94cdde5c463",
+    "prompt": "splash-v2-prompt.txt",
+    "status": "Refined splash artwork; not integrated into game"
+  },
+  "archive_context": {
+    "selected_direction": "San Francisco Soapbox Club — forest, vermilion, cream and fog mint",
+    "current_integration": "The selected identity is integrated into the application with a live 3D landing scene and accessible controls. The wide splash image remains reference artwork.",
+    "historical_status_fields": "Original exploration and splash status wording records the state at generation, before application integration.",
+    "game_art_v2": "The separate v2 game-art work is not represented as complete or integrated by this archive.",
+    "source_paths": "Machine-local generation paths were reduced to source basenames for portable provenance."
+  },
+  "archived_images": [
+    {
+      "file": "01-hill-climb-arcade.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "ae0d2a053b43ec0414773246284ecff66a07c93a97ae9472b1391e4226f14eee"
+    },
+    {
+      "file": "02-pre-revenue-racing.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "7967050a1228a6652c158e5b1f62bda26c21f8960f467dcdeee3bca8fd51a10e"
+    },
+    {
+      "file": "03-sf-soapbox-club.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "11b2d0b85b79a6e4b36165e5638c3c9c0258e31799ed609aa19013ebd5f288ec"
+    },
+    {
+      "file": "silicon-racer-badge-candidate-rgb.png",
+      "width": 1254,
+      "height": 1254,
+      "sha256": "e9df9cb242a9f7da8f29da396f26f7386ae81feb66ab62b2b405448dec294afe"
+    },
+    {
+      "file": "silicon-racer-badge.png",
+      "width": 1254,
+      "height": 1254,
+      "sha256": "a34d78dfc573520506f0542ae1762804530e7a27a7790d24e6b9f767f2e12b77"
+    },
+    {
+      "file": "silicon-racer-splash-v2.png",
+      "width": 1672,
+      "height": 941,
+      "sha256": "c1f356a35004cae91db9517f6ed889f09ee0bf507be2e4f28130d94cdde5c463"
+    }
+  ]
+}

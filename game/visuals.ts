@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import type { Blueprint, BodyDef } from './types';
 import { getBody, getWheel } from './catalogue';
-import { cloneModel } from './assets';
-import { TRACK_PIECES, START_Z, FINISH_Z, COURSE_MARKERS, groundHeight } from './track';
+import { cloneModel, type AssetId } from './assets';
+import { TRACK_PIECES, START_Z, FINISH_Z, COURSE_MARKERS, LANE_CENTERS, groundHeight } from './track';
 
 const INK = 0x283340;
 const CREAM = 0xfff4dc;
@@ -86,8 +86,8 @@ function handle(group: THREE.Group, x: number, y: number, z: number, w: number, 
 }
 
 function driver(group: THREE.Group, body: BodyDef, playerColor: number): void {
-  const y = body.height / 2;
-  const z = body.family === 'tall' ? body.length * 0.26 : -body.length * 0.12;
+  const y = body.driverSeat?.[1] ?? body.height / 2;
+  const z = body.driverSeat?.[2] ?? (body.family === 'tall' ? body.length * 0.26 : -body.length * 0.12);
   box(group, 0.43, 0.36, 0.35, playerColor, 0, y + 0.14, z);
   ball(group, 0.3, playerColor, 0, y + 0.48, z);
   const face = ball(group, 0.245, 0xf1c7a4, 0, y + 0.43, z + 0.115);
@@ -311,9 +311,10 @@ export function createVehicleModel(blueprint: Blueprint, playerColor: number): T
   const body = getBody(blueprint.bodyId);
   const group = new THREE.Group();
   group.name = `vehicle-${body.id}`;
-  const authored = body.id === 'toaster' ? cloneModel('toaster') : undefined;
+  const bodyAssets: Record<string, AssetId> = { toaster: 'toaster', sourdough: 'sourdough', mission_burrito: 'mission_burrito', painted_porch: 'painted_porch' };
+  const authored = bodyAssets[body.id] ? cloneModel(bodyAssets[body.id], { PlayerColor: playerColor }) : undefined;
   if (authored) group.add(authored);
-  else builders[body.id](group, body);
+  else (builders[body.id] ?? tub)(group, body);
   box(group, body.width * 0.76, 0.13, body.length * 0.76, INK, 0, -body.height * 0.47, 0);
   driver(group, body, playerColor);
   const pennant = new THREE.Group();
@@ -332,7 +333,8 @@ export function createVehicleModel(blueprint: Blueprint, playerColor: number): T
 /** Wheels rotate about local X. */
 export function createWheelModel(blueprint: Blueprint, playerColor: number): THREE.Group {
   const wheel = getWheel(blueprint.wheelId);
-  const authored = wheel.id === 'standard' ? cloneModel('wheel', { PlayerColor: playerColor }) : undefined;
+  const wheelAssets: Record<string, AssetId> = { standard: 'wheel', skate: 'skate', scooter: 'scooter', transit_disc: 'transit_disc' };
+  const authored = wheelAssets[wheel.id] ? cloneModel(wheelAssets[wheel.id], { PlayerColor: playerColor }) : undefined;
   if (authored) {
     authored.name = `wheel-${wheel.id}`;
     return authored;
@@ -600,16 +602,16 @@ export function createTrackScene(): THREE.Group {
     sign(group, name, i % 2 ? 10.5 : -10.5, heightAt(z) - 0.1, z - 2, color);
   });
 
-  for (const lane of [-3.5, 3.5]) {
+  for (const lane of LANE_CENTERS) {
     for (const [text, z, bg] of [['HOLD', 74, 0xffe29a], ['HOP!', 83, 0xffdb43]] as const) {
-      const cue = label(text, bg, INK, 3.7, 1.35);
+      const cue = label(text, bg, INK, 2.8, 1.2);
       cue.rotation.x = -Math.PI / 2;
       cue.rotation.z = Math.PI;
       cue.position.set(lane, heightAt(z) + 0.052, z);
       group.add(cue);
     }
     for (const z of [81.7, 84.4]) for (let stripe = 0; stripe < 8; stripe++) {
-      const marking = box(group, 0.65, 0.027, 0.32, stripe % 2 ? CREAM : 0xffd84c, lane - 2.28 + stripe * 0.65, heightAt(z) + 0.04, z);
+      const marking = box(group, 0.35, 0.027, 0.32, stripe % 2 ? CREAM : 0xffd84c, lane - 1.225 + stripe * 0.35, heightAt(z) + 0.04, z);
       marking.rotation.x = Math.atan(0.072);
     }
   }

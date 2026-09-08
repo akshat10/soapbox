@@ -1,52 +1,37 @@
 'use client';
+import Image from 'next/image';
+import Link from 'next/link';
+
 
 import { useRef, useState, type CSSProperties } from 'react';
-import { ArrowRight, Check, Flag, RotateCcw, Smartphone, Trophy, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Flag, HelpCircle, RotateCcw, Smartphone, Trophy, Volume2, VolumeX, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { Blueprint, VehicleSnapshot } from '@/game/types';
+import type { Blueprint, PlayerId, VehicleSnapshot, Stage } from '@/game/types';
+import type { PartyPlayer } from '@/game/party-types';
 import { BODIES, WHEELS, buildCost, isLegalBuild, getBody, WHEELBASE_COST } from '@/game/catalogue';
+import { PLAYER_COLORS, PLAYER_NAMES, racePlace, rankRace, heatPoints, raceCue } from '@/game/race';
+import { SiliconBrand } from './SiliconBrand';
+import { PartyJoinCode, PartySeats } from './PhonePartyPanel';
+import LandingScene from './LandingScene';
 
 export interface DerbyUIProps {
-  stage: 'garage' | 'countdown' | 'racing' | 'results' | 'final';
-  builds: Blueprint[];
-  onBuildChange: (player: 0 | 1, blueprint: Blueprint) => void;
-  onStart: () => void;
-  onNext: () => void;
-  onRematch: () => void;
-  snapshots: VehicleSnapshot[];
-  elapsed: number;
-  countdown: number;
-  heat: number;
-  scores: number[];
-  tips: string[];
-  onHold: (player: 0 | 1, held: boolean) => void;
-  onReset: () => void;
-  onCancelInput?: (player: 0 | 1) => void;
-  loaded: boolean;
-  phoneRoom?: string;
-  phoneReady?: boolean[];
-  onPhoneParty?: () => void;
+  stage: Stage; builds: Blueprint[]; racerIds: PlayerId[]; partyPlayers: PartyPlayer[];
+  onBuildChange: (player: PlayerId, blueprint: Blueprint) => void;
+  onStart: () => void; onNext: () => void; onRematch: () => void;
+  snapshots: VehicleSnapshot[]; elapsed: number; countdown: number; heat: number;
+  scores: number[]; tips: string[]; onHold: (player: PlayerId, held: boolean) => void;
+  onReset: () => void; onCancelInput?: (player: PlayerId) => void; loaded: boolean;
+  phoneRoom?: string; phoneReady?: boolean[]; onPhoneParty?: () => void;
+  muted: boolean; onToggleSound: () => void; finishCountdown?: number | null;
 }
-
-const PLAYER_COLORS = ['#3254ee', '#f45a4e'];
-const PLAYER_NAMES = ['BLUE CREW', 'RED RIOT'];
-const PLAYER_KEYS = ['F', 'J'];
+const PLAYER_KEYS = ['F', 'J', '', ''];
 const SPACING: Blueprint['wheelbase'][] = ['short', 'standard', 'long'];
-const BODY_NAMES: Record<string, string> = { bathtub: 'Bathtub', sofa: 'Sofa', dumpster: 'Dumpster', toaster: 'Toaster', suitcase: 'Suitcase', lunchbox: 'Lunchbox', canoe: 'Canoe', banana: 'Banana', ironingboard: 'Ironing board', shoppingcart: 'Shopping cart', fridge: 'Fridge', arcade: 'Arcade cabinet' };
-const FAMILY_LABELS: Record<string, string> = { broad: 'Low & broad', compact: 'Small & mighty', long: 'Long & low', tall: 'Tall & tippy' };
-const FAMILY_NOTES: Record<string, string> = {
-  'Low and broad': 'Planted stance. A little more to lift.',
-  Compact: 'Small body. Big hop energy.',
-  'Long and low': 'Steady landings. Mind the bumps.',
-  Tall: 'High clearance. Hold on tight.',
-};
-
-function timeLabel(seconds: number | null | undefined) {
-  if (seconds == null || !Number.isFinite(seconds)) return '—';
-  return `${seconds.toFixed(2)}s`;
-}
+const BODY_NAMES: Record<string, string> = { sourdough: 'Sourdough', mission_burrito: 'Burrito', painted_porch: 'Victorian porch', bathtub: 'Bathtub', sofa: 'Sofa', dumpster: 'Dumpster', toaster: 'Toaster', suitcase: 'Suitcase', lunchbox: 'Lunchbox', canoe: 'Canoe', banana: 'Banana', ironingboard: 'Ironing board', shoppingcart: 'Shopping cart', fridge: 'Fridge', arcade: 'Arcade cabinet' };
+const pointsLabel = (value: number) => Number((value || 0).toFixed(2));
+const timeLabel = (seconds: number | null | undefined) => seconds == null || !Number.isFinite(seconds) ? '—' : `${seconds.toFixed(2)}s`;
 
 function BodyGlyph({ id, color = 'currentColor' }: { id: string; color?: string }) {
+  if (['sourdough', 'mission_burrito', 'painted_porch'].includes(id)) return <Image unoptimized width={86} height={72} className="body-glyph authored-part" src={`/models/sf/${id}.png`} alt=""/>;
   const line = { stroke: '#20231d', strokeWidth: 2.5, strokeLinejoin: 'round' as const, strokeLinecap: 'round' as const };
   let shape;
   if (id.includes('bath')) shape = <><path d="M12 20h40l-4 17H19z" fill={color} {...line}/><path d="M16 20v-6q0-5 5-5h3v6" fill="none" {...line}/><path d="M11 20h43" {...line}/></>;
@@ -65,76 +50,63 @@ function BodyGlyph({ id, color = 'currentColor' }: { id: string; color?: string 
 }
 
 function WheelGlyph({ kind }: { kind: string }) {
+  if (['skate', 'scooter', 'transit_disc'].includes(kind)) return <Image unoptimized width={39} height={34} className="wheel-glyph authored-part" src={`/models/sf/${kind}.png`} alt=""/>;
   const size = kind === 'casters' ? 8 : kind === 'monster' ? 14 : 11;
   return <svg viewBox="0 0 38 34" aria-hidden="true"><circle cx="19" cy="17" r={size} fill="#292e31" stroke="#292e31" strokeWidth={kind === 'monster' ? 3 : 1} strokeDasharray={kind === 'monster' ? '4 2' : undefined}/><circle cx="19" cy="17" r={size * .45} fill="#fcf9ed"/><circle cx="19" cy="17" r="2.7" fill="#292e31"/></svg>;
 }
 
-export function GarageCard({ player, build, onChange, controllerDriven = false }: { player: 0 | 1; build: Blueprint; onChange: (blueprint: Blueprint) => void; controllerDriven?: boolean }) {
+export function GarageCard({ player, build, onChange, controllerDriven = false }: { player: PlayerId; build: Blueprint; onChange: (blueprint: Blueprint) => void; controllerDriven?: boolean }) {
   const body = getBody(build.bodyId);
+  const [showClassics, setShowClassics] = useState(body.family !== 'sf');
   const cost = buildCost(build);
-  const groups = [...new Set(BODIES.map((item) => item.family))];
+  const groups = [...new Set(BODIES.map(item => item.family))].filter(family => family === 'sf' || showClassics || family === body.family);
   return <section className={`garage-card player-${player}`} style={{ '--player-color': PLAYER_COLORS[player] } as CSSProperties} aria-label={`Player ${player + 1} garage`}>
-    <div className="garage-card-title"><div className="player-badge">P{player + 1}</div><div><span className="eyebrow">PICK YOUR RIDE</span><h2>{PLAYER_NAMES[player]}</h2></div><div className={`bolt-budget ${cost > 10 ? 'over-budget' : ''}`} title="10 bolts per player"><Zap size={15} fill="currentColor"/><strong>{10 - cost}</strong><span>left</span></div></div>
+    <div className="garage-card-title"><span className="player-badge">{player + 1}</span><div><span className="eyebrow">YOUR RACER</span><h2>{PLAYER_NAMES[player]}</h2></div><div className={`bolt-budget ${cost > 10 ? 'over-budget' : ''}`} title="Build with up to 10 bolts"><Zap size={15}/><strong>{10 - cost}</strong><span>left</span></div></div>
     <div className="garage-card-content">
       <div className="roster">
-        {groups.map((family) => <div className="roster-family" key={family}><div className="family-label">{FAMILY_LABELS[family] || family}</div><div className="body-options">{BODIES.filter((item) => item.family === family).map((item) => <Button key={item.id} variant="outline" className={`body-option ${item.id === build.bodyId ? 'is-selected' : ''}`} onClick={() => onChange({ ...build, bodyId: item.id })} disabled={!isLegalBuild({ ...build, bodyId: item.id })} aria-pressed={item.id === build.bodyId} title={!isLegalBuild({ ...build, bodyId: item.id }) ? `Not enough bolts — ${item.cost} bolts for ${BODY_NAMES[item.id] || item.name}. Choose cheaper wheels or shorter spacing.` : `${item.name}: ${item.description}. ${item.cost} bolts.`}><BodyGlyph id={item.id} color={`#${item.color.toString(16).padStart(6, '0')}`}/><span>{BODY_NAMES[item.id] || item.name}</span><span className="option-cost">{item.cost}<Zap size={9} fill="currentColor"/></span>{item.id === build.bodyId && <Check className="selection-check" size={12}/>}</Button>)}</div></div>)}
+        {groups.map(family => <div className="roster-family" key={family}><div className="family-label">{family === 'sf' ? 'Pick a chassis' : 'The Classics'}</div><div className="body-options">{BODIES.filter(item => item.family === family).map(item => <Button key={item.id} variant="outline" className={`body-option ${item.id === build.bodyId ? 'is-selected' : ''}`} onClick={() => onChange({ ...build, bodyId: item.id })} disabled={!isLegalBuild({ ...build, bodyId: item.id })} aria-pressed={item.id === build.bodyId} title={`${item.description} · ${item.cost} bolts${!isLegalBuild({ ...build, bodyId: item.id }) ? ' · Choose cheaper wheels or shorter spacing first' : ''}`}><BodyGlyph id={item.id} color={`#${item.color.toString(16).padStart(6, '0')}`}/><span>{BODY_NAMES[item.id] || item.name}</span><span className="option-cost">{item.cost}<Zap size={10}/></span>{item.id === build.bodyId && <Check className="selection-check" size={15}/>}</Button>)}</div></div>)}
+        <button type="button" className="classics-toggle" onClick={() => setShowClassics(!showClassics)} aria-expanded={showClassics}>{showClassics ? 'Hide Classics' : 'Browse 12 Classics'}</button>
       </div>
-      <div className="ride-note"><strong>{body.name}</strong><span>{body.id === 'shoppingcart' ? 'Tall basket, short footprint. Mind the landings.' : body.description || FAMILY_NOTES[body.family] || 'A very questionable racing machine.'}</span></div>
-      <fieldset className="part-group"><legend><span>02</span> WHEELS <small>Set of four</small></legend><div className="wheel-options">{WHEELS.map((wheel) => <Button key={wheel.id} variant="outline" className={`wheel-option ${build.wheelId === wheel.id ? 'is-selected' : ''}`} onClick={() => onChange({ ...build, wheelId: wheel.id })} disabled={!isLegalBuild({ ...build, wheelId: wheel.id })} title={!isLegalBuild({ ...build, wheelId: wheel.id }) ? `Not enough bolts — ${wheel.cost} bolts for ${wheel.name}. Choose a cheaper body or shorter spacing.` : `${wheel.name}: ${wheel.cost} bolts for a set of four.`} aria-pressed={build.wheelId === wheel.id}><WheelGlyph kind={wheel.id}/><span>{wheel.name}</span><small>{wheel.cost}<Zap size={9} fill="currentColor"/></small></Button>)}</div></fieldset>
-      <fieldset className="part-group spacing-group"><legend><span>03</span> WHEEL SPACING <small>Front to back</small></legend><div className="spacing-options">{SPACING.map((spacing) => <Button key={spacing} variant="outline" className={`spacing-option ${build.wheelbase === spacing ? 'is-selected' : ''}`} onClick={() => onChange({ ...build, wheelbase: spacing })} disabled={!isLegalBuild({ ...build, wheelbase: spacing })} title={!isLegalBuild({ ...build, wheelbase: spacing }) ? `Not enough bolts — ${WHEELBASE_COST[spacing]} bolts for ${spacing} spacing.` : `${spacing} spacing: ${WHEELBASE_COST[spacing]} bolts.`} aria-pressed={build.wheelbase === spacing}>{spacing === 'standard' ? 'Regular' : spacing}<small>{WHEELBASE_COST[spacing]}<Zap size={8} fill="currentColor"/></small></Button>)}</div></fieldset>
-      {!isLegalBuild(build) && <p className="budget-warning" role="alert">Over budget! Choose a cheaper body or wheels.</p>}
+      <div className="ride-note"><strong>{body.name}</strong><span>{body.description}</span></div>
+      <fieldset className="part-group"><legend>Pick your wheels</legend><div className="wheel-options">{WHEELS.filter(wheel => showClassics || ['skate', 'scooter', 'transit_disc'].includes(wheel.id) || wheel.id === build.wheelId).map(wheel => <Button key={wheel.id} variant="outline" className={`wheel-option ${build.wheelId === wheel.id ? 'is-selected' : ''}`} onClick={() => onChange({ ...build, wheelId: wheel.id })} disabled={!isLegalBuild({ ...build, wheelId: wheel.id })} title={`${wheel.name} · ${wheel.cost} bolts for four${!isLegalBuild({ ...build, wheelId: wheel.id }) ? ' · Choose a cheaper chassis first' : ''}`} aria-pressed={build.wheelId === wheel.id}><WheelGlyph kind={wheel.id}/><span>{wheel.name}</span><small>{wheel.cost}<Zap size={10}/></small></Button>)}</div></fieldset>
+      <details className="part-group tune-details"><summary>Fine-tune wheel spacing <span>Optional</span></summary><fieldset className="spacing-group"><legend className="sr-only">Wheel spacing</legend><div className="spacing-options">{SPACING.map(spacing => <Button key={spacing} variant="outline" className={`spacing-option ${build.wheelbase === spacing ? 'is-selected' : ''}`} onClick={() => onChange({ ...build, wheelbase: spacing })} disabled={!isLegalBuild({ ...build, wheelbase: spacing })} aria-pressed={build.wheelbase === spacing}>{spacing === 'standard' ? 'Regular' : spacing}<small>{WHEELBASE_COST[spacing]}<Zap size={9}/></small></Button>)}</div></fieldset></details>
+      {!isLegalBuild(build) && <p className="budget-warning" role="alert">Choose a cheaper part to stay within 10 bolts.</p>}
     </div>
-    <div className="garage-card-foot"><kbd>{controllerDriven ? `P${player + 1}` : PLAYER_KEYS[player]}</kbd><span>{controllerDriven ? "Choose your ride on your phone" : "Hold to charge. Release to hop."}</span></div>
+    <div className="garage-card-foot"><kbd>{controllerDriven ? `P${player + 1}` : PLAYER_KEYS[player]}</kbd><span>{controllerDriven ? 'Choose your ride on your phone' : 'Hold to charge. Release to hop.'}</span></div>
   </section>;
 }
 
-function RacePlayer({ player, snapshot, score, onHold, onCancelInput }: { player: 0 | 1; snapshot?: VehicleSnapshot; score: number; onHold: (held: boolean) => void; onCancelInput?: (player: 0 | 1) => void }) {
+function RaceLane({ player, snapshot, snapshots, spectator, onHold, onCancelInput, countdown }: { player: PlayerId; snapshot?: VehicleSnapshot; snapshots: VehicleSnapshot[]; spectator: boolean; onHold: (held: boolean) => void; onCancelInput?: (player: PlayerId) => void; countdown: boolean }) {
   const pointerHeld = useRef(false);
-  const cancelPointer = () => { if (pointerHeld.current) { pointerHeld.current = false; onCancelInput?.(player); } };
-  const progress = Math.min(100, Math.max(0, (snapshot?.progress || 0) * 100));
+  const cancel = () => { if (pointerHeld.current) { pointerHeld.current = false; onCancelInput?.(player); } };
   const charge = Math.min(100, Math.max(0, (snapshot?.charge || 0) * 100));
-  const status = snapshot?.finished ? 'FINISHED!' : snapshot?.recovering ? 'BACK ON YOUR WHEELS…' : !snapshot?.grounded ? 'AIR TIME!' : charge > 6 ? 'RELEASE TO HOP!' : 'HOLD TO CHARGE';
-  return <div className={`race-player player-${player}`} style={{ '--player-color': PLAYER_COLORS[player] } as CSSProperties}>
-    <div className="race-player-heading"><span className="player-badge">P{player + 1}</span><div><h2>{PLAYER_NAMES[player]}</h2><span>{snapshot ? getBody(snapshot.blueprint.bodyId).name : 'Ready to roll'}</span></div><span className="race-points">{score}<small>PTS</small></span></div>
-    <div className="race-progress"><progress aria-label={`Player ${player + 1} course progress`} value={progress} max={100}/><Flag size={12}/></div>
-    <div className="race-player-live"><span>{snapshot?.finished ? timeLabel(snapshot.finishTime) : `${Math.round((snapshot?.speed || 0) * 3.6)} km/h`}</span><span>{Math.round(progress)}% of hill</span></div>
-    <button className={`hop-control ${charge > 6 ? 'is-charging' : ''} ${snapshot?.finished ? 'has-finished' : ''}`} disabled={snapshot?.finished} onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); pointerHeld.current = true; onHold(true); }} onPointerUp={() => { pointerHeld.current = false; onHold(false); }} onPointerCancel={cancelPointer} onLostPointerCapture={cancelPointer} aria-label={`Player ${player + 1}: hold to charge, release to hop`}>
-      <span className="charge-fill" style={{ transform: `scaleX(${charge / 100})` }}/><kbd>{PLAYER_KEYS[player]}</kbd><span><strong>{status}</strong><small>{snapshot?.finished ? 'Nicely, chaotically done.' : snapshot?.recovering ? 'The clock keeps ticking.' : 'Hold the key or press here'}</small></span><Zap size={23} fill={charge > 6 ? 'currentColor' : 'none'}/>
-    </button>
-  </div>;
+  return <section className={`race-lane player-${player}`} style={{ '--player-color': PLAYER_COLORS[player] } as CSSProperties} aria-label={`${PLAYER_NAMES[player]} race`}>
+    <div className="lane-status"><span className="player-badge">{player + 1}</span><strong>{PLAYER_NAMES[player]}</strong><span className="lane-place">{snapshot && !countdown ? racePlace(snapshot, snapshots) : '—'}<small>/{snapshots.length || 2}</small></span></div>
+    <div className="lane-bottom"><span className="lane-cue">{countdown ? 'Ready for the hill' : snapshot ? raceCue(snapshot) : 'On the starting line'}</span>{!spectator && <button className={`hop-control ${charge > 6 ? 'is-charging' : ''}`} disabled={countdown || snapshot?.finished} onPointerDown={event => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); pointerHeld.current = true; onHold(true); }} onPointerUp={() => { pointerHeld.current = false; onHold(false); }} onPointerCancel={cancel} onLostPointerCapture={cancel} aria-label={`Player ${player + 1}: hold to charge, release to hop`}><span className="charge-fill" style={{ transform: `scaleX(${charge / 100})` }}/><kbd>{PLAYER_KEYS[player]}</kbd><strong>{snapshot?.finished ? 'Finished!' : charge > 6 ? 'Release to hop' : 'Hold to hop'}</strong><Zap size={20}/></button>}</div>
+  </section>;
 }
 
 export default function DerbyUI(props: DerbyUIProps) {
-  const { stage, builds, onBuildChange, onStart, onNext, onRematch, snapshots, elapsed, countdown, heat, scores, tips, onHold, onReset, onCancelInput, loaded } = props;
+  const { stage, builds, racerIds, onBuildChange, onStart, onNext, onRematch, snapshots, elapsed, countdown, heat, scores, onHold, onReset, onCancelInput, loaded } = props;
+  const [entered, setEntered] = useState(false);
   const [showRules, setShowRules] = useState(false);
-  const canRace = builds.length >= 2 && builds.every(isLegalBuild) && loaded && (!props.phoneRoom || props.phoneReady?.every(Boolean));
+  const landing = stage === 'garage' && !props.phoneRoom && !entered;
+  const race = stage === 'racing' || stage === 'countdown';
   const final = stage === 'final';
   const results = stage === 'results' || final;
-  const winner = scores[0] === scores[1] ? null : (scores[0] || 0) > (scores[1] || 0) ? 0 : 1;
-  return <div className={`derby-ui stage-${stage} ${props.phoneRoom ? "phone-mode" : ""}`}>
-    <header className="derby-header">
-      <div className="derby-logo" aria-label="Doodle Derby"><span>DOODLE</span><strong>DERBY<span className="logo-wheel">✳</span></strong></div>
-      <div className="event-chip"><span className="live-dot"/> SAN FRANCISCO <span className="chip-divider">/</span> {props.phoneRoom ? `PHONE PARTY · ${props.phoneRoom}` : "LOCAL 2P"}</div>
-      <div className="derby-header-actions">{props.onPhoneParty && <Button variant="outline" className="phone-party-button" onClick={props.onPhoneParty}><Smartphone size={17}/>{props.phoneRoom ? `ROOM ${props.phoneRoom}` : "Play with phones"}</Button>}<Button variant="outline" className="rules-button" onClick={() => setShowRules(!showRules)} aria-expanded={showRules}>{showRules ? 'Got it!' : 'How to play'}<span>?</span></Button></div>
-    </header>
-    {showRules && <aside className="rules-popover" aria-label="How to play"><h2>BUILD. BOUNCE. BRAG.</h2><p>Pick a body and wheels using <strong>10 bolts</strong>. Gravity does the driving.</p><p><kbd>F</kbd> Blue Crew · <kbd>J</kbd> Red Riot<br/><strong>Hold to charge, release to hop.</strong> Charge on the ground. Time a small hop over bumps and a bigger one for the jumps.</p><p>Three heats. The heat winner earns 3 points, second earns 1. Equal results share points. If you tumble, your crew puts you back on the hill.</p><Button className="small-action" onClick={() => setShowRules(false)}>Let’s roll <ArrowRight size={15}/></Button></aside>}
-    {stage === 'garage' && <>
-      <div className="garage-heading"><div className="section-kicker"><span className="mini-checker"/> THE VERY QUESTIONABLE GRAND PRIX</div><h1>BAD IDEAS.<br/><span>GREAT RACING.</span></h1><p>Build something ridiculous. Send it downhill.</p></div>
-      <div className="garage-layout">{([0, 1] as const).map((player) => builds[player] && <GarageCard key={player} controllerDriven={!!props.phoneRoom} player={player} build={builds[player]} onChange={(build) => onBuildChange(player, build)}/>)}</div>
-      <div className="preview-caption"><span className="preview-arrow">↙</span><span>12 everyday objects.<br/>Absolutely no racing pedigree.</span><span className="preview-arrow">↘</span></div>
-      <footer className="garage-footer"><div className="course-teaser"><Flag size={21}/><div><strong>ONE HILL. THREE HEATS.</strong><span>Lombard → Golden Gate → the Bay</span></div></div><Button className="start-button" disabled={!canRace} onClick={onStart}>{!loaded ? 'BUILDING THE HILL…' : !builds.every(isLegalBuild) ? 'CHECK YOUR BOLTS' : props.phoneRoom && !props.phoneReady?.every(Boolean) ? 'READY UP ON YOUR PHONES' : heat > 1 ? `RACE HEAT ${heat}` : 'LET’S ROLL'}<ArrowRight size={24}/></Button><div className="garage-status"><span className={canRace ? 'status-dot ready' : 'status-dot'}/>{props.phoneRoom ? `${props.phoneReady?.filter(Boolean).length || 0} OF 2 PLAYERS READY` : canRace ? 'BOTH BUILDS READY' : loaded ? '10 BOLTS PER PLAYER' : 'WARMING UP THE WHEELS'}<small>HEAT {heat} OF 3</small></div></footer>
-    </>}
-    {(stage === 'racing' || stage === 'countdown') && <>
-      <div className="race-topline"><div className="heat-badge"><span>HEAT</span><strong>{heat}<small>/ 3</small></strong></div><div className="race-clock">{elapsed.toFixed(1)}<small>SEC</small></div><Button variant="outline" className="restart-button" onClick={onReset}><RotateCcw size={16}/><span>Restart heat</span></Button></div>
-      <div className="lane-label lane-label-left">BLUE CREW <span>↓</span></div><div className="lane-label lane-label-right">RED RIOT <span>↓</span></div>
-      <div className="race-bottom">{([0, 1] as const).map((player) => <RacePlayer key={player} player={player} snapshot={snapshots[player]} score={scores[player] || 0} onHold={(held) => onHold(player, held)} onCancelInput={onCancelInput}/>)}</div>
-      {stage === 'countdown' && <div className="countdown-overlay"><span>GOOD LUCK, BAD IDEAS.</span><strong key={countdown}>{countdown > 0 ? countdown : 'GO!'}</strong><p>{props.phoneRoom ? <>Wait for GO, then hold the button on your phone · Release to hop</> : <>Wait for GO, then hold <kbd>F</kbd> / <kbd>J</kbd> · Release to hop</>}</p></div>}
-    </>}
-    {results && <div className="results-backdrop"><section className={`results-card ${final ? 'final-card' : ''}`}>
-      <div className="results-kicker"><span className="mini-checker"/>{final ? 'THE VERY QUESTIONABLE GRAND PRIX' : `SAN FRANCISCO / HEAT ${heat} COMPLETE`}<span className="mini-checker"/></div>
-      <div className="results-headline">{final && <Trophy className="champion-icon" size={45}/>}<h1>{final ? winner === null ? 'DOUBLE TROUBLE!' : `${PLAYER_NAMES[winner]} WINS!` : 'WHAT A RIDE.'}</h1><p>{final ? winner === null ? 'Two equally questionable champions.' : 'An everyday object. An extraordinary victory.' : 'Brush off the hay. There’s room for improvement.'}</p></div>
-      <div className="results-players">{([0, 1] as const).map((player) => { const snapshot = snapshots[player]; return <article key={player} className={`result-player player-${player}`} style={{ '--player-color': PLAYER_COLORS[player] } as CSSProperties}><div className="result-player-title"><span className="player-badge">P{player + 1}</span><strong>{PLAYER_NAMES[player]}</strong><div className="standing-score">{scores[player] || 0}<small>PTS TOTAL</small></div></div><div className="result-vehicle"><BodyGlyph id={builds[player]?.bodyId || 'bathtub'} color={PLAYER_COLORS[player]}/><span>{builds[player] ? getBody(builds[player].bodyId).name : 'Mystery machine'}</span></div><dl className="result-stats"><div><dt>{snapshot?.finished ? 'FINISH TIME' : 'DISTANCE'}</dt><dd>{snapshot?.finished ? timeLabel(snapshot.finishTime) : `${Math.round((snapshot?.progress || 0) * 100)}%`}</dd></div><div><dt>HOPS</dt><dd>{snapshot?.jumps || 0}</dd></div><div><dt>RECOVERIES</dt><dd>{snapshot?.recoveries || 0}</dd></div></dl>{!final && <div className="pit-tip"><span><Zap size={12} fill="currentColor"/> LOCAL PIT TIP</span><p>{tips[player] || 'Try a smaller hop over the rumble bumps. Save your big charge for the final kicker.'}</p></div>}</article>; })}</div>
-      <div className="results-footer"><p>{final ? 'New builds. Same friends. Another very bad idea.' : 'Tweak your build in the garage before the next heat.'}<small>{final ? 'Three heats. Maximum nonsense.' : 'Winner: 3 pts · Second: 1 pt · Ties share points'}</small></p><Button className="start-button" onClick={final ? onRematch : onNext}>{final ? 'ONE MORE DERBY' : heat >= 3 ? 'SEE THE CHAMPION' : 'BACK TO THE GARAGE'}{final ? <RotateCcw size={21}/> : <ArrowRight size={22}/>}</Button></div>
-    </section></div>}
+  const active = racerIds.length ? racerIds : [0, 1] as PlayerId[];
+  const canRace = active.length >= 2 && active.every(id => builds[id] && isLegalBuild(builds[id])) && loaded;
+  const readyCount = racerIds.filter(id => props.phoneReady?.[id]).length;
+  const maxScore = Math.max(...active.map(id => scores[id] || 0));
+  const winners = active.filter(id => (scores[id] || 0) === maxScore);
+  const ranked = final ? [...active].sort((a, b) => (scores[b] || 0) - (scores[a] || 0)) : rankRace(snapshots).map(s => s.id);
+  const points = heatPoints(snapshots);
+  return <div className={`derby-ui stage-${stage} ${landing ? 'is-landing' : ''} ${props.phoneRoom ? 'phone-mode' : ''}`}>
+    <header className="derby-header"><button className="brand-home" aria-label="Silicon Racer home" onClick={() => { if (stage === 'garage' && !props.phoneRoom) setEntered(false); }}><SiliconBrand compact/></button><span className="event-chip">{props.phoneRoom ? `ROOM ${props.phoneRoom}` : 'SAN FRANCISCO SOAPBOX CLUB'}</span><div className="derby-header-actions">{!landing && props.onPhoneParty && <Button variant="outline" className="phone-party-button" onClick={props.onPhoneParty}><Smartphone size={16}/>{props.phoneRoom ? 'Invite friends' : 'Play with phones'}</Button>}<button className="icon-button" onClick={props.onToggleSound} aria-label={props.muted ? 'Turn sound on' : 'Mute sound'}>{props.muted ? <VolumeX size={20}/> : <Volume2 size={20}/>}</button><button className="icon-button" onClick={() => setShowRules(!showRules)} aria-label="How to play" aria-expanded={showRules}><HelpCircle size={20}/></button></div></header>
+    {showRules && <aside className="rules-popover"><h2>One button. All the glory.</h2><p>Pick a chassis and wheels. Gravity does the driving.</p><p><strong>Hold to charge. Release to hop.</strong><br/>{props.phoneRoom ? 'Use the big button on your phone.' : 'On a keyboard: player 1 uses F, player 2 uses J.'}</p><p>Three heats. Finish ahead to earn more points: 5, 3, 2, 1. Ties share the points.</p><Button className="small-action" onClick={() => setShowRules(false)}>Got it <Check size={17}/></Button></aside>}
+    {landing && <section className="landing-screen"><div className="landing-copy"><SiliconBrand/><h1>Big ideas. Bad brakes.</h1><p>A downhill party game.<br/>Bring your friends. Build something ridiculous.</p><Button className="start-button landing-start" disabled={!loaded} onClick={() => props.onPhoneParty ? props.onPhoneParty() : setEntered(true)}>{loaded ? 'Start' : 'Warming up…'} <ArrowRight size={26}/></Button><Link className="landing-join" href="/play">Join a race <Smartphone size={16}/></Link><button className="keyboard-link" onClick={() => setEntered(true)}>2 players on this keyboard</button></div><div className="landing-world"><LandingScene/><div className="landing-caption"><span className="live-dot"/> BUILT IN SF. BARELY STREET LEGAL.</div></div><div className="landing-footnote">2–4 friends <span>•</span> Your phone is your controller <span>•</span> No downloads</div></section>}
+    {stage === 'garage' && !landing && (props.phoneRoom ? <section className="lobby-screen"><div className="screen-heading"><span className="eyebrow">HEAT {heat} OF 3</span><h1>Grab your phone.</h1><p>Scan. Pick a racer. Get ready.</p></div><div className="lobby-content"><PartyJoinCode code={props.phoneRoom}/><div className="lobby-crew"><PartySeats players={props.partyPlayers} builds={builds} ready={props.phoneReady}/><output className="lobby-status"><span className="live-dot"/>{racerIds.length < 2 ? 'Waiting for at least 2 racers' : readyCount === racerIds.length ? 'Everyone’s ready. Here we go!' : `${readyCount} of ${racerIds.length} ready`}</output></div></div><p className="lobby-note">The race starts when everyone is ready. Keep this screen open to watch.</p></section> : <section className="local-garage"><div className="screen-heading"><button className="text-button" onClick={() => setEntered(false)}><ArrowLeft size={16}/> Back</button><h1>Pick your racer.</h1><p>Choose a chassis. Add wheels. Send it.</p></div><div className="garage-layout">{([0, 1] as PlayerId[]).map(player => builds[player] && <GarageCard key={player} player={player} build={builds[player]} onChange={build => onBuildChange(player, build)}/>)}</div><footer className="garage-footer"><span>HEAT {heat} / 3</span><Button className="start-button" disabled={!canRace} onClick={onStart}>{loaded ? 'Race!' : 'Loading the hill…'}<ArrowRight size={23}/></Button><span><kbd>F</kbd> + <kbd>J</kbd> to hop</span></footer></section>)}
+    {race && <><div className="race-topline"><span>HEAT {heat} / 3</span><strong className={props.finishCountdown != null ? 'finish-clock' : ''}>{props.finishCountdown != null ? `FINISH IN ${Math.ceil(props.finishCountdown)}s` : `${elapsed.toFixed(1)}s`}</strong>{!props.phoneRoom && <button className="icon-button" onClick={onReset} aria-label="Restart heat"><RotateCcw size={16}/></button>}</div><div className={`race-lanes ${active.length > 2 ? 'four-lanes' : ''}`}>{active.map(player => <RaceLane key={player} player={player} snapshot={snapshots.find(s => s.id === player)} snapshots={snapshots} spectator={!!props.phoneRoom} onHold={held => onHold(player, held)} onCancelInput={onCancelInput} countdown={stage === 'countdown'}/>)}</div>{stage === 'countdown' && <div className="countdown-overlay"><span>SEE YOU AT THE BOTTOM.</span><strong key={countdown}>{countdown > 0 ? countdown : 'GO!'}</strong><p>Wait for GO. Hold to charge. Release to hop.</p></div>}</>}
+    {results && <div className="results-backdrop"><section className="results-card"><span className="eyebrow">{final ? 'THE BRAGGING RIGHTS ARE IN' : `HEAT ${heat} COMPLETE`}</span><div className="results-headline">{final ? <Trophy size={38}/> : <Flag size={32}/>}<h1>{final ? winners.length > 1 ? 'Shared glory!' : `${PLAYER_NAMES[winners[0]]} wins!` : 'What a ride.'}</h1><p>{final ? 'Big ideas. Extremely questionable driving.' : 'One hill closer to glory.'}</p></div><div className="results-players">{ranked.map(player => { const snapshot = snapshots.find(s => s.id === player); const place = final ? 1 + active.filter(id => (scores[id] || 0) > (scores[player] || 0)).length : snapshot ? racePlace(snapshot, snapshots) : '—'; return <article className="result-player" key={player} style={{ '--player-color': PLAYER_COLORS[player] } as CSSProperties}><span className="result-place">{place}</span><BodyGlyph id={builds[player]?.bodyId || 'sourdough'} color={PLAYER_COLORS[player]}/><div className="result-name"><strong>{PLAYER_NAMES[player]}</strong><span>{snapshot?.finished ? timeLabel(snapshot.finishTime) : `${Math.round((snapshot?.progress || 0) * 100)}% of the hill`}{!final && ` · +${pointsLabel(points[player])} pts`}</span></div><div className="standing-score">{pointsLabel(scores[player])}<small>PTS</small></div></article>; })}</div><footer className="results-footer">{props.phoneRoom ? <output>{final ? 'Ready up on your phones for a rematch.' : heat < 3 ? 'Your garages open in a moment…' : 'The final podium is coming…'}</output> : <Button className="start-button" onClick={final ? onRematch : onNext}>{final ? 'Play again' : heat < 3 ? 'Next heat' : 'See the podium'}<ArrowRight size={23}/></Button>}</footer></section></div>}
   </div>;
 }
