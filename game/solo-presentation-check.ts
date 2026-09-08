@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import { DEFAULT_BUILDS } from './catalogue';
+import { SoloFeedbackTracker, soloDrivingCue, type SoloSnapshot } from './solo-presentation';
+
+const base: SoloSnapshot = { id: 0, blueprint: DEFAULT_BUILDS[0], position: { x: 0, y: 0, z: 0 }, quaternion: { x: 0, y: 0, z: 0, w: 1 }, wheels: [], speed: 12, progress: .1, charge: 0, grounded: true, recovering: false, finished: false, finishTime: null, flips: 0, recoveries: 0, jumps: 0, maxRoll: 0, courseId: 'bay-or-bust', pathId: 'main', pathDistance: 45 };
+const at = (pathDistance: number, values: Partial<SoloSnapshot> = {}): SoloSnapshot => ({ ...base, pathDistance, ...values });
+assert.equal(soloDrivingCue(at(151)).kind, 'ahead', 'Show the bridge warning before the charging window.');
+assert.equal(soloDrivingCue(at(163)).kind, 'charge', 'Charge close enough to the useful release point.');
+assert.equal(soloDrivingCue(at(168)).kind, 'hop', 'Give a release cue with a short human reaction allowance.');
+assert.equal(soloDrivingCue(at(168, { grounded: false })).kind, 'air', 'Do not tell airborne drivers to keep charging.');
+assert.equal(soloDrivingCue(at(125, { recovering: true })).kind, 'recover');
+assert.equal(soloDrivingCue(at(125)).kind, 'turn-right', 'The Lantern bend should be announced in advance.');
+assert.equal(soloDrivingCue(at(450, { circuit: true, lap: 1, laps: 3 })).kind, 'cruise', 'The return road must not announce the race finish.');
+
+const tracker = new SoloFeedbackTracker();
+const pack = (player: SoloSnapshot) => [player, { ...base, id: 1 as const, progress: .2 }, { ...base, id: 2 as const, progress: .3 }, { ...base, id: 3 as const, progress: .4 }];
+const start = tracker.observe(pack(base), .01);
+assert.equal(start?.kind, 'start');
+assert.equal(tracker.observe(pack(base), 2), null, 'Short start feedback clears itself.');
+const pass = tracker.observe(pack({ ...base, progress: .5 }), 5);
+assert.equal(pass?.title, 'You’re in front!');
+assert.equal(tracker.observe(pack({ ...base, progress: .5 }), 5), pass, 'Paused simulation time does not advance feedback.');
+assert.equal(tracker.observe(pack({ ...base, progress: .5 }), 7), null, 'Holding first place must not repeatedly announce an overtake.');
+const ring = tracker.observe(pack({ ...base, progress: .5, rings: 1 }), 8);
+assert.equal(ring?.kind, 'ring');
+assert.equal(tracker.observe(pack({ ...base, progress: .5, rings: 1, lap: 3, laps: 3 }), 10)?.title, 'Final lap!');
+const finished = { ...base, progress: 1, finished: true, finishTime: 65.25 };
+assert.equal(tracker.observe(pack(finished), 65.25)?.kind, 'finish');
+assert.equal(tracker.observe(pack(base), .01)?.kind, 'start', 'Restarting a heat clears old finish and lap state.');
+console.log('Solo presentation passed: early road cues, useful hop timing, grounded/recovery priority, nonrepeating feedback, pause and restart.');

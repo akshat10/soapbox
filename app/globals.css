@@ -382,3 +382,135 @@ body {
  .local-lane-keyhint { font-size:8px; padding:4px 6px; white-space:nowrap; }
  .local-keyboard-mode .garage-footer>.local-keyboard-summary { grid-template-columns:1fr; gap:5px; }
 }
+
+/* Solo race polish: brief event feedback, readable cues, explicit controls. */
+.steering-preference { display:flex; align-items:center; justify-content:center; gap:9px; cursor:pointer; pointer-events:auto; color:var(--forest); font-size:13px; font-weight:700; }
+.steering-preference input { width:17px; height:17px; accent-color:var(--blue); cursor:pointer; }
+.steering-preference input:focus-visible { outline:3px solid var(--race-sun); outline-offset:3px; }
+.garage-steering-preference { margin-bottom:10px; }
+.party-pause .steering-preference { margin:20px 0; }
+.rules-popover .steering-preference { justify-content:flex-start; padding:12px 0; }
+.solo-cue { display:flex; align-items:center; justify-content:center; gap:8px; text-transform:uppercase; transition:background .16s ease,color .16s ease; }
+.solo-cue[data-kind="hop"],.solo-cue[data-kind="charge"] { background:var(--race-sun); color:var(--forest); }
+.solo-cue[data-kind="turn-left"],.solo-cue[data-kind="turn-right"] { border:1px solid #fff5; }
+.solo-race-moment { position:absolute; top:108px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:11px; width:max-content; max-width:280px; padding:13px 18px; border:1px solid #fff9; border-radius:16px; background:#f7f0dfed; color:var(--forest); backdrop-filter:blur(10px); box-shadow:0 10px 32px #163c3214; pointer-events:none; transition:opacity var(--moment-exit) ease,translate var(--moment-exit) ease; }
+.solo-race-moment>svg { flex-shrink:0; color:var(--blue); }
+.solo-race-moment strong { display:block; font-size:21px; font-weight:850; letter-spacing:-.6px; line-height:1.15; }
+.solo-race-moment .moment-detail { display:block; margin-top:4px; color:#527165; font-size:11px; font-weight:650; }
+.solo-race-moment[data-stage="1"] { animation:solo-moment-enter var(--moment-enter) cubic-bezier(.2,.8,.2,1) both; }
+.solo-race-moment[data-stage="3"] { opacity:0; translate:0 calc(-1 * var(--moment-offset)); }
+.solo-race-moment.moment-start,.solo-race-moment.moment-finish,.solo-race-moment.moment-lap,.solo-race-moment.moment-ring { background:#ffda76f2; }
+.solo-ring-count { position:absolute; top:241px; left:30px; display:flex; align-items:center; gap:7px; padding:7px 10px; border:1px solid #fff9; background:#f7f0dfdd; border-radius:10px; color:var(--forest); }
+.solo-ring-count>span { color:#b77917; font-size:19px; line-height:1; }
+.solo-ring-count strong { font-size:16px; font-variant-numeric:tabular-nums; }
+.solo-ring-count small { font-size:9px; font-weight:850; letter-spacing:1px; }
+.solo-lap { position:absolute; top:285px; left:30px; display:flex; align-items:baseline; gap:6px; color:var(--forest); }
+.solo-lap>span { font-size:10px; font-weight:850; letter-spacing:1px; }
+.solo-lap strong { font-size:22px; font-variant-numeric:tabular-nums; }
+.solo-lap small { font-size:12px; color:#527165; }
+@keyframes solo-moment-enter { from { opacity:0; translate:0 calc(-1 * var(--moment-offset)); scale:var(--moment-scale); } to { opacity:1; translate:0 0; scale:1; } }
+@media(max-width:800px) {
+ .solo-race-moment { top:292px; padding:10px 14px; max-width:240px; gap:8px; }
+ .solo-race-moment strong { font-size:17px; }
+ .solo-race-moment .moment-detail { font-size:10px; }
+ .solo-ring-count { top:205px; left:18px; padding:5px 8px; }
+ .solo-lap { top:174px; left:18px; gap:5px; }
+ .solo-lap strong { font-size:19px; }
+ .solo-position>div { display:none; }
+ .solo-course { top:265px; }
+}
+@media(max-height:540px) and (min-width:601px) {
+ .solo-race-moment { top:82px; }
+ .solo-ring-count { top:177px; left:18px; }
+ .solo-lap { top:140px; left:18px; }
+ .solo-course { top:auto; }
+}
+
+
+/* Bay or Bust start screen: one race action beside the actual course. */
+.landing-solo-track { grid-template-columns:minmax(310px,.85fr) minmax(0,1.3fr); gap:clamp(24px,4vw,64px); padding:8px 4vw 64px; overflow:visible; }
+.landing-solo-track .landing-copy { padding:0; }
+.landing-solo-track .landing-copy .badge { width:clamp(180px,18vw,230px); margin:-30px 0 -30px; }
+.landing-solo-track .solo-edition { font-size:12px; letter-spacing:1.6px; margin:12px 0 18px; }
+.landing-solo-track .landing-copy h1 { font-size:clamp(44px,4vw,62px); line-height:.98; letter-spacing:-2.5px; margin:0 0 18px; }
+.landing-solo-track .landing-copy>p { font-size:16px; line-height:1.6; margin:0 0 24px; }
+.landing-solo-track .landing-start { width:min(340px,100%); min-height:68px!important; height:auto!important; font-size:27px!important; }
+.landing-controls { display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:8px 18px; margin-top:22px; font-size:12px; color:#51665a; }
+.landing-controls>span { display:inline-flex; align-items:center; gap:5px; }
+.landing-controls kbd { display:inline-grid; place-items:center; min-width:24px; min-height:25px; padding:2px 5px; border:1px solid #163c3233; border-bottom-width:3px; border-radius:5px; color:var(--forest); background:#fffaf0; font:700 12px Arial,sans-serif; }
+.landing-solo-track .landing-world { display:flex; flex-direction:column; min-height:430px; height:clamp(430px,calc(100dvh - 190px),680px); margin:0; border:1px solid #163c3240; border-radius:28px; overflow:hidden; background:#b9d9df; box-shadow:0 8px 0 #163c3210; pointer-events:auto; }
+.landing-solo-track .landing-world::before { content:none; }
+.landing-track-heading { position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:24px 28px 8px; }
+.landing-track-kicker { font-size:12px; letter-spacing:1.4px; font-weight:800; }
+.landing-track-heading h2 { margin:5px 0 0; font:900 clamp(30px,3.3vw,48px)/1 Georgia,serif; letter-spacing:-1.8px; }
+.landing-track-heading h2>span { display:inline-block; margin-left:9px; color:var(--vermilion); font-family:Arial,sans-serif; }
+.landing-track-number { font:900 38px/1 Georgia,serif; color:#163c3266; }
+.landing-solo-track .landing-scene { flex:1; min-height:0; }
+.landing-solo-track .landing-scene-canvas { position:absolute; inset:0; cursor:grab; }
+.landing-solo-track .landing-scene-canvas:active { cursor:grabbing; }
+.landing-course-loading { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:25px; text-align:center; }
+.landing-course-loading strong { font:800 26px Georgia,serif; }
+.landing-course-loading>span { font-size:14px; color:#3f655e; }
+.landing-explore-hint { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); padding:7px 12px; border-radius:30px; background:#f7f0dfe8; font-size:12px; color:var(--forest); pointer-events:none; white-space:nowrap; }
+.landing-route { display:flex; align-items:center; justify-content:center; gap:15px; padding:16px 22px; border-top:1px solid #163c3226; background:#e6eee1; font-size:14px; font-weight:750; }
+.landing-solo-track .landing-footnote { gap:28px; bottom:21px; font-size:12px; }
+@media (pointer:coarse) { .landing-explore-hint { display:none; } .landing-solo-track .landing-scene-canvas { cursor:default; } }
+@media(max-width:800px) {
+ .landing-solo-track { grid-template-columns:1fr; gap:28px; padding:0 20px 28px; }
+ .landing-solo-track .landing-copy .badge { width:185px; margin:-35px 0 -30px; }
+ .landing-solo-track .solo-edition { margin:6px 0 14px; }
+ .landing-solo-track .landing-copy h1 { font-size:44px; line-height:1; margin-bottom:14px; }
+ .landing-solo-track .landing-copy>p { font-size:16px; margin-bottom:20px; }
+ .landing-solo-track .landing-world { grid-row:auto; width:100%; min-height:380px; height:440px; border-radius:22px; }
+ .landing-solo-track .landing-start { width:min(340px,100%); }
+ .landing-track-heading { padding:20px 20px 4px; }
+ .landing-track-heading h2 { font-size:36px; }
+ .landing-track-kicker { font-size:12px; letter-spacing:.8px; }
+ .landing-controls { margin-top:18px; }
+ .landing-solo-track .landing-footnote { position:static; width:auto; gap:8px 20px; padding:0; font-size:12px; flex-wrap:wrap; }
+}
+@media(max-width:420px) { .landing-route { gap:9px; font-size:12px; padding:15px 12px; } .landing-track-number { font-size:30px; } }
+
+/* The live circuit owns the landing viewport; controls stay in the left rail. */
+.is-landing .landing-solo-track { width:100%; max-width:none; height:100dvh; min-height:580px; grid-template-columns:minmax(280px,30%) minmax(0,1fr); align-items:stretch; gap:0; padding:0; margin:0; overflow:hidden; }
+.is-landing .landing-solo-track .landing-copy { min-width:0; justify-content:center; align-items:flex-start; text-align:left; padding:32px clamp(20px,2.4vw,42px); }
+.landing-brand-row { display:flex; align-items:center; justify-content:space-between; gap:14px; width:100%; margin-bottom:clamp(30px,5vh,58px); }
+.landing-brand-row .silicon-brand.compact { flex-shrink:0; }
+.landing-actions { display:flex; align-items:center; gap:5px; }
+.landing-actions .icon-button { width:38px; height:38px; border:0; }
+.is-landing .landing-solo-track .landing-copy h1 { font-size:clamp(34px,3.7vw,58px); line-height:1; letter-spacing:-1.8px; margin:0 0 18px; }
+.is-landing .landing-solo-track .landing-copy>p { font-size:16px; line-height:1.55; margin:0 0 26px; }
+.is-landing .landing-solo-track .landing-start { width:100%; max-width:330px; min-height:60px!important; padding:14px 20px!important; font-size:clamp(21px,2vw,27px)!important; gap:12px; }
+.is-landing .landing-controls { justify-content:flex-start; align-items:flex-start; gap:10px 16px; margin-top:22px; font-size:12px; }
+.is-landing .landing-solo-track .landing-world { position:relative; display:block; grid-row:auto; width:100%; height:100%; min-height:0; margin:0; padding:0; border:0; border-radius:0; box-shadow:none; background:#b9d9df; overflow:hidden; }
+.is-landing .landing-solo-track .landing-scene,.is-landing .landing-solo-track .landing-scene-canvas { position:absolute; inset:0; width:100%; height:100%; min-height:0; padding:0; }
+.is-landing .landing-scene-canvas canvas { display:block; width:100%; height:100%; }
+.is-landing .landing-explore-hint { bottom:18px; padding:6px 11px; font-size:12px; background:#f7f0dfcc; }
+.is-landing .rules-popover { position:fixed; left:18px; right:auto; top:18px; max-height:calc(100dvh - 36px); overflow:auto; }
+@media(min-width:801px) and (max-height:680px) {
+ .is-landing .landing-solo-track { min-height:460px; }
+ .is-landing .landing-solo-track .landing-copy { padding-top:22px; padding-bottom:22px; }
+ .is-landing .landing-brand-row { margin-bottom:26px; }
+ .is-landing .landing-solo-track .landing-copy h1 { font-size:40px; margin-bottom:14px; }
+ .is-landing .landing-solo-track .landing-copy>p { margin-bottom:20px; }
+ .is-landing .landing-controls { margin-top:17px; }
+}
+@media(max-width:800px) {
+ .is-landing .landing-solo-track { height:100dvh; min-height:660px; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(330px,1fr); }
+ .is-landing .landing-solo-track .landing-copy { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:center; gap:12px 18px; padding:22px 22px 20px; }
+ .is-landing .landing-brand-row { grid-column:1 / -1; margin:0 0 5px; }
+ .is-landing .landing-brand-row .silicon-brand.compact { width:104px; }
+ .is-landing .landing-solo-track .landing-copy h1 { font-size:34px; letter-spacing:-1.4px; margin:0; }
+ .is-landing .landing-solo-track .landing-copy>p { font-size:14px; line-height:1.5; margin:0; }
+ .is-landing .landing-solo-track .landing-start { grid-column:1 / -1; min-height:52px!important; max-width:none; font-size:22px!important; padding:12px 18px!important; }
+ .is-landing .landing-controls { grid-column:1 / -1; justify-content:center; gap:7px 14px; margin:0; font-size:12px; }
+ .is-landing .landing-controls kbd { min-width:22px; min-height:23px; font-size:11px; }
+ .is-landing .landing-solo-track .landing-world { width:100%; height:100%; min-height:330px; border-radius:0; }
+ .is-landing .landing-explore-hint { bottom:12px; }
+}
+@media(max-width:370px) {
+ .is-landing .landing-solo-track .landing-copy { padding:18px 16px; column-gap:12px; }
+ .is-landing .landing-solo-track .landing-copy h1 { font-size:29px; }
+ .is-landing .landing-solo-track .landing-copy>p { font-size:13px; }
+ .is-landing .landing-controls { gap:7px; font-size:11px; }
+}
