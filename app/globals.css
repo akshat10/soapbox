@@ -349,3 +349,36 @@ body {
 .solo-steering button:active { background:var(--race-sun); transform:translateY(3px); box-shadow:0 1px 0 #103f3888; }
 @media(max-width:800px) { .solo-steering { left:18px; bottom:158px; gap:9px; } .solo-steering button { width:55px; height:52px; } }
 @media(max-height:540px) and (min-width:601px) { .solo-steering { bottom:75px; } .solo-steering button { width:50px; height:46px; } }
+/* Local Bay or Bust duel: independent steering and hop touch controls. */
+.local-garage-controls { display:flex; flex-wrap:wrap; align-items:center; gap:7px 16px; }
+.local-garage-controls>span { display:flex; align-items:center; gap:5px; }
+.local-keyboard-mode .garage-footer>.local-keyboard-summary { display:grid; gap:5px; font-size:11px; }
+.local-keyboard-summary kbd { min-width:21px; min-height:21px; font-size:10px; }
+.local-keyboard-mode .lane-bottom { width:100%; gap:9px; }
+.local-lane-controls { display:grid; grid-template-columns:52px minmax(0,1fr) 52px; align-items:stretch; gap:8px; width:min(450px,100%); }
+.local-lane-controls .hop-control { grid-column:2; grid-row:1; width:100%; padding:12px; gap:8px; }
+.local-steer-button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; min-width:44px; min-height:64px; border:2px solid var(--forest); border-radius:14px; background:#f7f0dfeb; color:var(--forest); box-shadow:0 4px 0 var(--forest); touch-action:none; user-select:none; -webkit-user-select:none; }
+.local-steer-button.steer-left { grid-column:1; grid-row:1; }
+.local-steer-button.steer-right { grid-column:3; grid-row:1; }
+.local-steer-button kbd { min-width:19px; min-height:17px; font-size:9px; border-color:#163c3240; }
+.local-steer-button:active { background:var(--player-color); color:white; transform:translateY(3px); box-shadow:0 1px 0 var(--forest); }
+.local-steer-button:disabled { opacity:.5; cursor:not-allowed; }
+.local-steer-button:focus-visible { outline:3px solid var(--race-sun); outline-offset:3px; }
+.local-lane-keyhint { color:var(--cream); background:#163c32d9; border-radius:8px; padding:5px 9px; font-size:10px; font-weight:750; letter-spacing:.1px; }
+@media(max-width:800px) {
+ .local-keyboard-mode .garage-footer { flex-wrap:wrap; }
+ .local-keyboard-mode .garage-footer>.local-keyboard-summary { width:100%; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; text-align:center; font-size:10px; }
+ .local-lane-controls { grid-template-columns:44px minmax(0,1fr) 44px; gap:5px; }
+ .local-lane-controls .hop-control { padding:10px 7px; gap:5px; }
+ .local-lane-controls .hop-control strong { font-size:12px; }
+ .local-lane-controls .hop-control>svg { display:none; }
+}
+@media(max-width:600px) {
+ .local-lane-controls { grid-template-columns:1fr 1fr; gap:7px; max-width:240px; }
+ .local-lane-controls .hop-control { grid-column:1/-1; grid-row:1; min-height:54px; }
+ .local-steer-button.steer-left { grid-column:1; grid-row:2; }
+ .local-steer-button.steer-right { grid-column:2; grid-row:2; }
+ .local-steer-button { flex-direction:row; min-height:44px; gap:7px; border-radius:10px; }
+ .local-lane-keyhint { font-size:8px; padding:4px 6px; white-space:nowrap; }
+ .local-keyboard-mode .garage-footer>.local-keyboard-summary { grid-template-columns:1fr; gap:5px; }
+}
