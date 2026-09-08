@@ -52,6 +52,15 @@ Rooms support four phones and expire after two hours. Keep the shared screen ope
 
 The shared browser is authoritative for physics and outcomes. WebRTC sends inputs and full car/wheel poses directly when available (up to 30 updates per second). An HTTP relay provides a fallback, with ordered input sequence numbers preventing duplicate hops during handovers. Phones interpolate received poses, use a capped rendering resolution and omit expensive real-time shadows. Relay latency and actual device performance still need broader playtesting. Late joiners enter the next heat. The spectator screen must remain open and visible; this version does not run physics on a background server.
 
+
+## Background music
+
+The music-note button opens **Bay radio** on the home screen, in the garage, and during a race. It plays 12 tracks from the seven supplied OpenGameArt sources, including all six songs in Funk Collection. Music starts with a click, tap, or gameplay key, advances through the playlist, and loops back at the end. **Next track** skips a song; **Music volume** adjusts music independently of race effects. The speaker button mutes all sound. Music volume and master mute persist on this browser.
+
+Music pauses with the race and while the tab is hidden, then resumes at the same position. Files load one song at a time. Missing files skip forward; if the playlist cannot load, the panel offers a retry. The MP3s are loudness normalized and include full songs. Credits and source/license links are available inside Bay radio and in [music credits](public/audio/music/CREDITS.md). Sweet 70s is by Clement Panchout under CC BY 4.0; the remaining tracks are CC0.
+
+`node --import tsx game/music-player-check.ts` verifies activation, pause/visibility/mute, volume, playlist wrap, stale playback promises, missing assets, cleanup, and soundtrack metadata.
+
 ## Run locally
 
 Requires Node 22.13 or newer.

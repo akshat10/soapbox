@@ -20,6 +20,6 @@ export default function LandingScene() {
     <div className="landing-scene-canvas" ref={host} aria-hidden="true"/>
     {!ready && <output className="landing-course-loading"><span>{failed ? 'The course preview is unavailable.' : 'Loading the live course…'}</span></output>}
     {ready && <span className="landing-explore-hint">Drag to orbit · Scroll to zoom</span>}
-    <span className="sr-only">Live 3D overview of the complete Bay or Bust circuit with racers: Lombard Gardens, Lantern Quarter, Golden Gate Leap, Mission Market, SoMa Circuit, Pier Pressure and the Skyline Run return.</span>
+    <span className="sr-only">Live 3D view following racers around Bay or Bust. Drag to orbit the camera or scroll to zoom.</span>
   </div>;
 }
