@@ -1,0 +1,21 @@
+{
+  "toast-malone": {
+    "file": "toast-malone.glb",
+    "bytes": 723140,
+    "materialBatches": 8,
+    "evaluatedPolygons": 12828
+  },
+  "painted-lady": {
+    "file": "painted-lady.glb",
+    "bytes": 2032136,
+    "materialBatches": 8,
+    "evaluatedPolygons": 35700
+  },
+  "street-wheel": {
+    "file": "street-wheel.glb",
+    "bytes": 308104,
+    "materialBatches": 6,
+    "evaluatedPolygons": 5186
+  },
+  "coordinates": "Y-up, +Z forward; toaster centered on chassis; wheel rotates around X; house origin on ground"
+}

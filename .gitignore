@@ -36,3 +36,9 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# generated local caches and Blender backups
+*.tsbuildinfo
+__pycache__/
+*.py[cod]
+*.blend[0-9]

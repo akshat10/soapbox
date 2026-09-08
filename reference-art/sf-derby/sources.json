@@ -1,0 +1,68 @@
+{
+  "source_thread": "https://chatgpt.com/s/cx_6aa06772bee081919c2e91c464c97f82",
+  "source_title": "Generate SF game art assets",
+  "imported_on": "2026-09-08",
+  "status": "Unmodified raster concept references; not production 3D assets.",
+  "assets": [
+    {
+      "file": "01-sf-cityscape.png",
+      "source_asset": "asset-1",
+      "source_url": "https://chatgpt.com/backend-api/wham/shared_threads/cx_6aa06772bee081919c2e91c464c97f82/assets/asset-1",
+      "width": 1536,
+      "height": 1024,
+      "png_color_type": 2,
+      "bytes": 2635491,
+      "sha256": "83dbce3d7af3fd01e6b1658e3bc215696368605bf0d8dd54b4c5313c2fb9ae25"
+    },
+    {
+      "file": "02-neighborhood-kits.png",
+      "source_asset": "asset-2",
+      "source_url": "https://chatgpt.com/backend-api/wham/shared_threads/cx_6aa06772bee081919c2e91c464c97f82/assets/asset-2",
+      "width": 1536,
+      "height": 1024,
+      "png_color_type": 2,
+      "bytes": 2258267,
+      "sha256": "261b117d14a485370989cc269665232b5230ce31d11c9a37253fd99ced5f069f"
+    },
+    {
+      "file": "03-chassis-bodies.png",
+      "source_asset": "asset-3",
+      "source_url": "https://chatgpt.com/backend-api/wham/shared_threads/cx_6aa06772bee081919c2e91c464c97f82/assets/asset-3",
+      "width": 1536,
+      "height": 1024,
+      "png_color_type": 6,
+      "bytes": 2434760,
+      "sha256": "84e93bc1464602cb5edcfa5b3dc178bb1b1e8911e50c4fbc1bd0e183aa55ea5e"
+    },
+    {
+      "file": "04-wheels-contact.png",
+      "source_asset": "asset-4",
+      "source_url": "https://chatgpt.com/backend-api/wham/shared_threads/cx_6aa06772bee081919c2e91c464c97f82/assets/asset-4",
+      "width": 1536,
+      "height": 1024,
+      "png_color_type": 6,
+      "bytes": 1924770,
+      "sha256": "16998cbf498497c86eaaa0de448b0f5a17ef99008f1d3e723a915a5a810aafdc"
+    },
+    {
+      "file": "05-power-brake-aero.png",
+      "source_asset": "asset-6",
+      "source_url": "https://chatgpt.com/backend-api/wham/shared_threads/cx_6aa06772bee081919c2e91c464c97f82/assets/asset-6",
+      "width": 1536,
+      "height": 1024,
+      "png_color_type": 6,
+      "bytes": 1980153,
+      "sha256": "c00fd7830e50781609d447290f32176f1f363064b2401aa8ee08571d8791147c"
+    },
+    {
+      "file": "06-track-hazards.png",
+      "source_asset": "asset-5",
+      "source_url": "https://chatgpt.com/backend-api/wham/shared_threads/cx_6aa06772bee081919c2e91c464c97f82/assets/asset-5",
+      "width": 1536,
+      "height": 1024,
+      "png_color_type": 6,
+      "bytes": 2154826,
+      "sha256": "7bb620d8b301983d6fd8ca91bb1e622cb87ba2feb8cc7c5c6e9c050c1f44f4f8"
+    }
+  ]
+}
