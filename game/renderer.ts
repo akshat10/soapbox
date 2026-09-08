@@ -3,6 +3,7 @@ import { createVehicleModel, createWheelModel, createTrackScene } from './visual
 import { getBody, getWheel } from './catalogue';
 import { groundHeight } from './track';
 import { courseForSnapshot } from './course';
+import { SCENIC_CAMERA, scenicCameraTargets, type RaceCameraMode } from './race-camera';
 import { disposeCourseScene, type CourseScene } from './course-scene';
 import { RaceEffects } from './race-effects';
 import { PLAYER_COLORS } from './race';
@@ -50,6 +51,8 @@ export class DerbyRenderer {
  scene = new THREE.Scene();
  showroom = new THREE.Scene();
  cameras = Array.from({ length: MAX_RACERS }, () => new THREE.PerspectiveCamera(CHASE_CAMERA.fov, 1, 0.1, CHASE_CAMERA.far));
+ scenicCameras = Array.from({ length: MAX_RACERS }, () => new THREE.PerspectiveCamera(SCENIC_CAMERA.fov, 1, .1, 1400));
+ private cameraMode: RaceCameraMode = 'chase';
  showroomCamera = new THREE.PerspectiveCamera(35, 1, 0.1, 200);
  cars: Car[] = [];
  previewCars: THREE.Group[] = [];
@@ -180,7 +183,33 @@ export class DerbyRenderer {
   return { x: horizontal ? index * width : 0, y: horizontal ? 0 : (1 - index) * height, width, height };
  }
 
+ setCameraMode(mode: RaceCameraMode) {
+  if (mode === this.cameraMode) return;
+  this.cameraMode = mode;
+  this.cameraRigs.forEach(rig => { rig.ready = false; });
+ }
+
  private updateCamera(snapshot: VehicleSnapshot, dt: number, aspect: number, focused: boolean) {
+  if (this.cameraMode === 'scenic') {
+   const camera = this.scenicCameras[snapshot.id], rig = this.cameraRigs[snapshot.id];
+   const { eye, aim } = scenicCameraTargets(snapshot, aspect);
+   this.aimTarget.copy(aim);
+   const snap = !rig.ready || rig.previousPosition.distanceToSquared(snapshot.position) > CHASE_CAMERA.teleportDistance ** 2
+    || rig.recovering !== snapshot.recovering || rig.recoveries !== snapshot.recoveries;
+   if (snap) { rig.aim.copy(this.aimTarget); camera.position.copy(eye); }
+   else {
+    rig.aim.lerp(this.aimTarget, smooth(5, dt));
+    camera.position.lerp(eye, smooth(5, dt));
+   }
+   camera.lookAt(rig.aim);
+   camera.aspect = aspect;
+   camera.updateProjectionMatrix();
+   rig.ready = true;
+   rig.previousPosition.copy(snapshot.position);
+   rig.recovering = snapshot.recovering;
+   rig.recoveries = snapshot.recoveries;
+   return;
+  }
   const camera = this.cameras[snapshot.id], rig = this.cameraRigs[snapshot.id];
   const road = cameraRoadHeight(snapshot.position.z);
   const jumpHeight = Math.max(0, snapshot.position.y - road - 1.1);
@@ -320,7 +349,7 @@ export class DerbyRenderer {
   this.renderer.setScissorTest(true);
   displayed.forEach((snapshot, index) => {
    const view = this.viewport(index, displayed.length, focused);
-   const camera = this.cameras[snapshot.id];
+   const camera = this.cameraMode === 'scenic' ? this.scenicCameras[snapshot.id] : this.cameras[snapshot.id];
    if (!camera) return;
    camera.aspect = view.width / view.height;
    camera.updateProjectionMatrix();

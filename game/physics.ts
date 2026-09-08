@@ -2,6 +2,8 @@ import { Body, Box, ContactMaterial, ConvexPolyhedron, GSSolver, Material, Point
 import { getBody, getWheel, isLegalBuild, wheelMounts } from './catalogue';
 import { BAY_OR_BUST_COURSE, BAY_CIRCUIT_COURSE, type DerbyCourse, type RoadProjection } from './course';
 import { applyArcadeDrive, ARCADE_DRIVE, roadSpeedLimit } from './arcade-drive';
+import { containOnTrack } from './track-boundary';
+import { bridgeColliders, OBSTACLE_GROUP } from './course-obstacles';
 import { AERIAL_RINGS, BOOST_PADS, ROUGH_PATCHES, BOOST_SPEED_GAIN, BOOST_SPEED_CAP, BOOST_FEEDBACK_SECONDS, ROUGH_RESISTANCE, insideStrip } from './course-features';
 import { CHECKPOINT_ZS, FINISH_Z, LANE_CENTERS, START_Z, TRACK_PIECES, groundHeight } from './track';
 import type { Blueprint, PlayerId, Pose, VehicleSnapshot } from './types';
@@ -81,6 +83,7 @@ interface Racer {
   recoveryZ: number;
   lastZ: number;
   collisionAt: number;
+  stepSpeed: number;
   airborneAt: number;
   lastGroundedAt: number;
   bufferedRelease: number;
@@ -114,6 +117,10 @@ export class DerbyPhysics {
       contactEquationStiffness: 1e7,
       contactEquationRelaxation: 4,
     }));
+    this.world.addContactMaterial(new ContactMaterial(this.chassisMaterial, this.chassisMaterial, {
+      friction: 0.08, restitution: 0.15,
+      contactEquationStiffness: 1e7, contactEquationRelaxation: 4,
+    }));
 
     this.buildTrack();
   }
@@ -137,6 +144,9 @@ export class DerbyPhysics {
           const vertices = worldVertices.map(point => point.vsub(center));
           body.addShape(new ConvexPolyhedron({ vertices, faces: [[0, 1, 2], [3, 5, 4], [0, 3, 4, 1], [1, 4, 5, 2], [2, 5, 3, 0]] }), center.vsub(origin));
         }
+        this.trackBodies.push(body); this.world.addBody(body);
+      }
+      for (const body of bridgeColliders(this.course, this.groundMaterial)) {
         this.trackBodies.push(body); this.world.addBody(body);
       }
       return;
@@ -164,7 +174,7 @@ export class DerbyPhysics {
       linearDamping: 0.014,
       angularDamping: 0.16,
       collisionFilterGroup: VEHICLE_GROUP,
-      collisionFilterMask: GROUND_GROUP,
+      collisionFilterMask: GROUND_GROUP | VEHICLE_GROUP | OBSTACLE_GROUP,
       allowSleep: false,
     });
     chassis.addShape(new Box(new Vec3(body.width / 2, body.height / 2, body.length / 2)), new Vec3(0, -body.comHeight, 0));
@@ -212,7 +222,7 @@ export class DerbyPhysics {
       overturnedSeconds: 0, stalledSeconds: 0, checkpointZ: START_Z,
       checkpointVelocity: new Vec3(),
       recoveryZ: START_Z,
-      lastZ: START_Z, collisionAt: -10, airborneAt: 0,
+      lastZ: START_Z, collisionAt: -10, stepSpeed: 0, airborneAt: 0,
       lastGroundedAt: -Infinity, bufferedRelease: 0,
     };
     this.racers.set(id, racer);
@@ -319,6 +329,7 @@ export class DerbyPhysics {
           racer.charge = 0;
         }
       }
+      for (const racer of this.racers.values()) racer.stepSpeed = racer.chassis.velocity.length();
       this.world.step(STEP);
       for (const racer of this.racers.values()) this.updateRacer(racer);
       this.accumulator -= STEP;
@@ -404,8 +415,8 @@ export class DerbyPhysics {
     let fellOff = position.y < groundHeight(position.z) - 5 || position.z < START_Z - 5;
     if (this.course) {
       const previous = racer.route ?? { pathId: 'main', distance: this.course.startDistance };
-      const projection = this.course.project(position, previous);
-      const plausibleTravel = Math.max(0.15, racer.chassis.velocity.length() * STEP * 2 + 0.1);
+      let projection = this.course.project(position, previous);
+      const plausibleTravel = Math.max(0.15, Math.max(racer.stepSpeed, racer.chassis.velocity.length()) * STEP * 2 + 0.1);
       // On an inside bend, nearest-segment projection can jump across a road
       // sample even though the car moves only centimetres. Allow that seam in
       // course distance, but independently verify actual chassis travel so a
@@ -413,6 +424,16 @@ export class DerbyPhysics {
       // rejection; a stationary teleported car must still recover.
       const continuous = position.distanceTo(racer.lastCoursePosition) <= plausibleTravel
         && Math.abs(projection.distance - previous.distance) <= plausibleTravel + this.course.maxSampleSpacing;
+      // Validate the uncorrected motion first: containment cannot turn a
+      // teleport across a hairpin into accepted race progress.
+      if (continuous) {
+        const impact = containOnTrack(racer.chassis, racer.blueprint, projection);
+        projection = this.course.project(position, projection);
+        if (impact > 2.5 && this.elapsed - racer.collisionAt > .7) {
+          racer.collisionAt = this.elapsed;
+          this.record(racer, 'collision', impact);
+        }
+      }
       const onRoad = projection.separation <= projection.width / 2 + 0.7 && projection.height > -2.5;
       if (continuous) {
         racer.route = projection;
@@ -570,6 +591,8 @@ export class DerbyPhysics {
     if (this.course) racer.validCourseDistance = racer.recoveryZ;
     racer.recoveries += 1;
     racer.recoveryLeft = RECOVERY_SECONDS;
+    // A car being righted must not pin another racer in place.
+    racer.chassis.collisionFilterMask = GROUND_GROUP | OBSTACLE_GROUP;
     racer.boostRemaining = 0;
     racer.onRough = false;
     racer.charge = 0;
@@ -585,6 +608,7 @@ export class DerbyPhysics {
   }
 
   private placeAt(racer: Racer, z: number, restoreVelocity = false): void {
+    racer.chassis.collisionFilterMask = GROUND_GROUP | VEHICLE_GROUP | OBSTACLE_GROUP;
     const body = getBody(racer.blueprint.bodyId);
     const wheel = getWheel(racer.blueprint.wheelId);
     // A slope-aligned pose avoids a gratuitous landing bounce at the start/checkpoint.

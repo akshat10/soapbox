@@ -6,6 +6,8 @@ import type { Blueprint } from './types';
 
 // Test-only steering driver. Production has no road-following AI, yaw correction,
 // or lateral correction: all turns below use the same public control as a phone.
+// With physical car contact, give the test drivers distinct racing lines.
+// Head-on and side contact are covered separately by collision-check.ts.
 const builds: Blueprint[] = [DEFAULT_BUILDS[0], DEFAULT_BUILDS[1],
   { bodyId: 'painted_porch', wheelId: 'scooter', wheelbase: 'standard' }, DEFAULT_BUILDS[0]];
 const summary = [];
@@ -21,7 +23,7 @@ for (const pattern of ['no hops', 'controlled hops', 'late hops'] as const) {
       const body = bodies[state.id], speed = Math.hypot(body.velocity.x, body.velocity.z);
       const distance = state.pathDistance!, length = wheelbases[state.id];
       const target = course.frame(distance + Math.max(4, speed * .6));
-      const local = body.pointToLocalFrame(target.position);
+      const local = body.pointToLocalFrame(target.position.vadd(target.right.scale([-4.2, -1.4, 1.4, 4.2][state.id])));
       const cap = Math.atan(length / (8 + .2 * Math.min(speed, 10)));
       race.setSteering(state.id, Math.atan2(2 * length * local.x, local.x ** 2 + local.z ** 2) / cap);
       const offset = pattern === 'late hops' ? 2 : 0;
