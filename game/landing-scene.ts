@@ -7,6 +7,7 @@ import { DEFAULT_BUILDS, getBody, getWheel, wheelMounts } from './catalogue';
 import { createVehicleModel, createWheelModel } from './visuals';
 import { SOLO_RIVALS } from './solo';
 import { PLAYER_COLORS } from './race';
+import { ReferenceLighting } from './reference-lighting.js';
 
 /** A lightweight animated preview on the real circuit, independent of the race. */
 export async function createLandingScene(host: HTMLElement): Promise<(() => void) | undefined> {
@@ -17,29 +18,25 @@ export async function createLandingScene(host: HTMLElement): Promise<(() => void
   catch { disposeCourseScene(course); return; }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
   renderer.setClearColor(0xb9d9df, 1);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.12;
-  renderer.shadowMap.enabled = false;
   host.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xb9d9df);
-  scene.environment = course.sky;
+  scene.background = course.sky ?? new THREE.Color(0xb9d9df);
+  scene.fog = new THREE.Fog(0xb9d9df, 180, 750);
+  // Share the race's color response, directional light and reflections so
+  // the homepage shows the same materials without lifting all the shadows.
+  const lighting = new ReferenceLighting(renderer, { raceScene: scene, quality: 'mobile' });
+  const coarse = window.matchMedia('(pointer: coarse)');
+  if (coarse.matches) renderer.shadowMap.enabled = false;
   course.setCircuit(true);
   scene.add(course.root);
-  scene.add(new THREE.HemisphereLight(0xddecf5, 0x80735f, 2.1));
-  const sun = new THREE.DirectionalLight(0xffebcd, 3.1);
-  sun.position.set(-110, 220, 140); scene.add(sun);
-  const fill = new THREE.DirectionalLight(0xc4e1f4, .7);
-  fill.position.set(140, 80, -60); scene.add(fill);
 
   const hero = route.frame(108);
   const forward = new THREE.Vector3(hero.tangent.x, 0, hero.tangent.z).normalize();
   const right = new THREE.Vector3(hero.right.x, 0, hero.right.z).normalize();
   const center = new THREE.Vector3(hero.position.x, hero.position.y + 2.5, hero.position.z).addScaledVector(forward, 7);
   const camera = new THREE.PerspectiveCamera(48, 1, .1, 1400);
-  camera.position.set(hero.position.x, hero.position.y + 11, hero.position.z).addScaledVector(forward, -18).addScaledVector(right, 8);
+  camera.position.set(hero.position.x, hero.position.y + 8, hero.position.z).addScaledVector(forward, -12).addScaledVector(right, 5);
   camera.lookAt(center);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.copy(center);
@@ -47,7 +44,6 @@ export async function createLandingScene(host: HTMLElement): Promise<(() => void
   controls.minDistance = 12; controls.maxDistance = 420; controls.zoomSpeed = .7;
   controls.enableDamping = false; controls.rotateSpeed = .45;
   controls.minPolarAngle = Math.PI / 8; controls.maxPolarAngle = Math.PI / 2.2;
-  const coarse = window.matchMedia('(pointer: coarse)');
   controls.enableRotate = !coarse.matches;
   if (coarse.matches) renderer.domElement.style.touchAction = 'pan-y';
   controls.update();
@@ -55,7 +51,6 @@ export async function createLandingScene(host: HTMLElement): Promise<(() => void
   const models = new THREE.Group(); models.name = 'Live overview racers'; scene.add(models);
   const trackLength = route.paths[0].samples.at(-1)!.s;
   const scale = 1.8;
-  const starts = [148, 156, 164, 172];
   const blueprints = [DEFAULT_BUILDS[0], ...SOLO_RIVALS.map(rival => rival.build)];
   const racers = blueprints.map((blueprint, id) => {
     const body = getBody(blueprint.bodyId), wheel = getWheel(blueprint.wheelId);
@@ -69,7 +64,7 @@ export async function createLandingScene(host: HTMLElement): Promise<(() => void
     const shadow = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshBasicMaterial({color:0x183c43,transparent:true,opacity:.2,depthWrite:false}));
     shadow.rotation.x = -Math.PI / 2; shadow.scale.set(body.width * .7, body.length * .64, 1); shadow.position.y = .07;
     group.add(shadow); models.add(group);
-    return { group, wheels, radius: wheel.radius, distance: starts[id], id };
+    return { group, wheels, radius: wheel.radius, distance: 148 + id * 8, id };
   });
   let packDistance = 120, animationTime = 0;
   let cameraHeading = Math.atan2(hero.tangent.x, hero.tangent.z);
@@ -81,7 +76,7 @@ export async function createLandingScene(host: HTMLElement): Promise<(() => void
     for (const racer of racers) {
       // Keep the showcase pack together, with small passes instead of the
       // cars gradually spreading out and leaving the close camera empty.
-      const offset = (racer.id - 1.5) * 8 + Math.sin(animationTime * .24 + racer.id * 1.7) * 5;
+      const offset = (racer.id - (racers.length - 1) / 2) * 8 + Math.sin(animationTime * .24 + racer.id * 1.7) * 5;
       racer.distance = (packDistance + offset + trackLength) % trackLength;
       const current = route.lookFrame(racer.distance);
       const lateral = racer.id % 2 ? 1.7 : -1.7;
@@ -95,6 +90,7 @@ export async function createLandingScene(host: HTMLElement): Promise<(() => void
 
   const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
   let disposed = false, pending = 0, visible = true, width = 1, height = 1, dirty = true;
+  const lightFocus = new THREE.Vector3();
   let last = performance.now();
   const draw = (now: number) => {
     pending = 0;
@@ -121,6 +117,9 @@ export async function createLandingScene(host: HTMLElement): Promise<(() => void
       }
       if (dt) course.mixer.update(dt);
       course.features.update(undefined, dt, true, motion.matches);
+      const litRoad = route.lookFrame(racers[0].distance + 10);
+      lightFocus.set(litRoad.position.x, litRoad.position.y, litRoad.position.z);
+      lighting.prepareRaceView(lightFocus);
       renderer.render(scene, camera); dirty = false;
     }
     if (!motion.matches) pending = requestAnimationFrame(draw);
@@ -164,6 +163,6 @@ export async function createLandingScene(host: HTMLElement): Promise<(() => void
       if (node.userData.disposeTexture instanceof THREE.Texture) textures.add(node.userData.disposeTexture);
     });
     geometries.forEach(geometry => geometry.dispose()); materials.forEach(material => material.dispose()); textures.forEach(texture => texture.dispose());
-    disposeCourseScene(course); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
+    lighting.dispose(); disposeCourseScene(course); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
   };
 }

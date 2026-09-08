@@ -2,8 +2,8 @@
 import Image from 'next/image';
 
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { ArrowLeft, ArrowRight, Bot, Check, Flag, Gauge, HelpCircle, Pause, RotateCcw, Smartphone, Trophy, Volume2, VolumeX, Zap } from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { ArrowLeft, ArrowRight, Bot, Check, Flag, Gauge, HelpCircle, Pause, RotateCcw, Smartphone, Trophy, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Blueprint, PlayerId, VehicleSnapshot, Stage } from '@/game/types';
 import type { PartyPlayer } from '@/game/party-types';
@@ -20,6 +20,7 @@ import RaceCameraButton from './RaceCameraButton';
 import type { RaceCameraMode } from '@/game/race-camera';
 
 export interface DerbyUIProps {
+  soundControls: ReactNode;
   cameraMode: RaceCameraMode; onToggleCamera: () => void;
   onLandingChange: (visible: boolean) => void;
   raceMoment: SoloMoment | null;
@@ -188,11 +189,11 @@ export default function DerbyUI(props: DerbyUIProps) {
   const ranked = final ? [...active].sort((a, b) => (scores[b] || 0) - (scores[a] || 0)) : rankRace(snapshots).map(s => s.id);
   const points = heatPoints(snapshots);
   return <div className={`derby-ui stage-${stage} ${landing ? 'is-landing' : ''} ${props.phoneRoom ? 'phone-mode' : ''} ${solo ? 'solo-mode' : ''} ${localKeyboard ? 'local-keyboard-mode' : ''}`}>
-    {!landing && <header className="derby-header"><button className="brand-home" aria-label="Silicon Racer home" onClick={() => { if (stage === 'garage' && !props.phoneRoom) setEntered(false); }}><SiliconBrand compact/></button><span className="event-chip">{props.phoneRoom ? `ROOM ${props.phoneRoom}` : solo ? 'SOLO GRAND PRIX · SAN FRANCISCO' : 'BAY OR BUST · LOCAL DUEL'}</span><div className="derby-header-actions">{props.phoneRoom && props.onPhoneParty && <Button variant="outline" className="phone-party-button" onClick={props.onPhoneParty}><Smartphone size={16}/>{props.phoneRoom ? 'Invite friends' : 'Play with phones'}</Button>}{race && solo && <RaceCameraButton mode={props.cameraMode} onToggle={props.onToggleCamera}/>}<button className="icon-button" onClick={props.onToggleSound} aria-label={props.muted ? 'Turn sound on' : 'Mute sound'}>{props.muted ? <VolumeX size={20}/> : <Volume2 size={20}/>}</button><button className="icon-button" onClick={() => setShowRules(!showRules)} aria-label="How to play" aria-expanded={showRules}><HelpCircle size={20}/></button></div></header>}
+    {!landing && <header className="derby-header"><button className="brand-home" aria-label="Silicon Racer home" onClick={() => { if (stage === 'garage' && !props.phoneRoom) setEntered(false); }}><SiliconBrand compact/></button><span className="event-chip">{props.phoneRoom ? `ROOM ${props.phoneRoom}` : solo ? 'SOLO GRAND PRIX · SAN FRANCISCO' : 'BAY OR BUST · LOCAL DUEL'}</span><div className="derby-header-actions">{props.phoneRoom && props.onPhoneParty && <Button variant="outline" className="phone-party-button" onClick={props.onPhoneParty}><Smartphone size={16}/>{props.phoneRoom ? 'Invite friends' : 'Play with phones'}</Button>}{race && solo && <RaceCameraButton mode={props.cameraMode} onToggle={props.onToggleCamera}/>}{props.soundControls}<button className="icon-button" onClick={() => setShowRules(!showRules)} aria-label="How to play" aria-expanded={showRules}><HelpCircle size={20}/></button></div></header>}
     {showRules && <aside className="rules-popover"><h2>{props.phoneRoom ? "One button. All the glory." : "Build. Steer. Send it."}</h2><p>Pick a chassis and wheels. Your ride accelerates for you.</p><p><strong>Hold to charge. Release to hop.</strong><br/>{props.phoneRoom ? 'Use the big button on your phone.' : solo ? 'Arrow keys steer. Hold Space or F to charge; release to hop. Or use the on-screen controls. Escape pauses.' : 'Player 1: A / D steer, F hops. Player 2: ← / → steer, J hops. Hold your hop key to charge, then release. You can also use each player’s on-screen controls. Escape pauses.'}</p>{solo && <label className="steering-preference"><input type="checkbox" checked={props.reverseArrows} onChange={event=>props.onReverseArrowsChange(event.target.checked)}/><span>Reverse arrow keys</span></label>}{solo && <p>Tap the camera button or press C to switch between Chase and Scenic views.</p>}<p>Three heats. Finish ahead to earn more points: 5, 3, 2, 1. Ties share the points.</p><Button className="small-action" onClick={() => setShowRules(false)}>Got it <Check size={17}/></Button></aside>}
     {landing && <section className="landing-screen landing-solo-track">
       <div className="landing-copy">
-        <div className="landing-brand-row"><SiliconBrand compact/><div className="landing-actions"><button className="icon-button" onClick={props.onToggleSound} aria-label={props.muted ? 'Turn sound on' : 'Mute sound'}>{props.muted ? <VolumeX size={18}/> : <Volume2 size={18}/>}</button><button className="icon-button" onClick={() => setShowRules(!showRules)} aria-label="How to play" aria-expanded={showRules}><HelpCircle size={18}/></button></div></div>
+        <div className="landing-brand-row"><SiliconBrand compact/><div className="landing-actions">{props.soundControls}<button className="icon-button" onClick={() => setShowRules(!showRules)} aria-label="How to play" aria-expanded={showRules}><HelpCircle size={18}/></button></div></div>
         <h1>Big ideas.<br/>Bad brakes.</h1>
         <p>Build your ride. Race three rivals.<br/>Three laps around the bay.</p>
         <Button className="start-button landing-start" disabled={!loaded} onClick={() => { props.onModeChange('solo'); setEntered(true); }}>{loaded ? 'Race solo' : 'Loading…'} <ArrowRight size={28}/></Button>

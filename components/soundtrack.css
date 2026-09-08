@@ -1,0 +1,26 @@
+.sound-controls { display:flex; align-items:center; gap:2px; }
+.sound-controls .icon-button { flex-shrink:0; }
+.soundtrack-panel { width:min(320px,calc(100vw - 24px)); max-height:min(580px,calc(100dvh - 32px)); overflow:auto; padding:20px; gap:18px; color:var(--forest,#163c32); background:var(--cream,#f7f0df); border:1px solid #163c3240; border-radius:16px; box-shadow:0 12px 40px #163c3228; font:400 14px/1.5 Arial,sans-serif; }
+.soundtrack-title { font:800 24px/1.1 Georgia,serif; }
+.soundtrack-now { display:flex; flex-direction:column; gap:3px; }
+.soundtrack-now>span { font-size:12px; font-weight:700; letter-spacing:1px; color:#4a655b; }
+.soundtrack-now>strong { font-size:18px; line-height:1.25; }
+.soundtrack-panel a { text-decoration:underline; text-underline-offset:3px; }
+.soundtrack-now>a { align-self:flex-start; }
+.soundtrack-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.soundtrack-actions button { display:flex; align-items:center; gap:7px; min-height:44px; padding:8px 12px; background:#163c320a; border:1px solid #163c3233; border-radius:8px; font-weight:700; cursor:pointer; }
+.soundtrack-panel button:hover { background:#163c3218; }
+.soundtrack-panel :focus-visible { outline:2px solid var(--forest,#163c32); outline-offset:3px; }
+.soundtrack-volume { display:flex; flex-direction:column; gap:8px; }
+.soundtrack-volume>div:first-child { display:flex; justify-content:space-between; }
+.soundtrack-volume [data-slot=slider] { padding:12px 0; }
+.soundtrack-volume [data-slot=slider-track] { background:#163c3225; height:5px; }
+.soundtrack-volume [data-slot=slider-range] { background:var(--forest,#163c32); }
+.soundtrack-volume [data-slot=slider-thumb] { width:16px; height:16px; border-color:var(--forest,#163c32); }
+.soundtrack-credits { border-top:1px solid #163c3225; padding-top:12px; font-size:12px; }
+.soundtrack-credits summary { cursor:pointer; font-size:14px; min-height:32px; }
+.soundtrack-credits ul { display:flex; flex-direction:column; gap:12px; padding:0; margin:12px 0; list-style:none; }
+.soundtrack-credits li { display:flex; flex-direction:column; }
+.soundtrack-credits li>a { font-size:14px; font-weight:700; }
+.soundtrack-credits p,.soundtrack-error { margin:0 0 8px; }
+@media(min-width:761px) and (max-width:1100px) { .landing-brand-row { flex-wrap:wrap; gap:8px; } }

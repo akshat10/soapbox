@@ -1,6 +1,9 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import DerbyUI from './DerbyUI';
+import SoundControls from './SoundControls';
+import { useSoundtrack } from '@/hooks/use-soundtrack';
+import { useMutePreference } from '@/hooks/use-mute-preference';
 import PhonePartyPanel from './PhonePartyPanel';
 import { DEFAULT_BUILDS, isLegalBuild } from '@/game/catalogue';
 import { localTip } from '@/game/advice';
@@ -39,7 +42,12 @@ export default function DoodleDerby() {
  const [partyOpen, setPartyOpen] = useState(false), [partyBusy, setPartyBusy] = useState(false), [partyError, setPartyError] = useState('');
  const [roomCode, setRoomCode] = useState(''), [players, setPlayers] = useState<PartyPlayer[]>([]);
  const [finishCountdown, setFinishCountdown] = useState<number | null>(null);
- const [muted, setMuted] = useState(false), mutedRef = useRef(false);
+ const [muted, setMuted] = useMutePreference(), mutedRef = useRef(false);
+ const soundtrack = useSoundtrack(muted, paused && (stage === 'racing' || stage === 'countdown'));
+ useEffect(() => {
+  mutedRef.current = muted;
+  if (muted) for (const audio of trackSounds.current.values()) audio.pause();
+ }, [muted]);
  const [reverseArrows, setReverseArrows] = useState(true), reverseArrowsRef = useRef(true);
  const [raceMoment, setRaceMoment] = useState<SoloMoment | null>(null);
  const [cameraMode, setCameraMode] = useState<RaceCameraMode>('chase'), cameraModeRef = useRef<RaceCameraMode>('chase');
@@ -241,7 +249,7 @@ export default function DoodleDerby() {
  async function closeParty(){const party=partyRef.current;partyRef.current=null;party?.dispose();playersRef.current=[];setPartyOpen(false);setPlayers([]);setRoomCode('');setPartyError('');const r=runtime.current;if(r){r.paused=false;rematch(r);setPaused(false);}try{await party?.close();}catch{}}
  const ready=PLAYER_IDS.map(id=>players.some(p=>p.id===id&&p.connected&&p.ready&&p.readyHeat===heat));
  return <main className="doodle-derby"><div ref={canvasRef} className="derby-canvas" style={{position:'fixed',inset:0}}/>
-  <DerbyUI cameraMode={cameraMode} onToggleCamera={toggleCamera} onLandingChange={onLandingChange} raceMoment={raceMoment} reverseArrows={reverseArrows} onReverseArrowsChange={changeArrowDirection} mode={mode} onModeChange={onModeChange} onPause={onPause} onSteer={onSteer} stage={stage} builds={builds} racerIds={racerIds} partyPlayers={players} onBuildChange={onBuildChange} onStart={onStart} onNext={()=>runtime.current&&nextHeat(runtime.current)} onRematch={()=>runtime.current&&rematch(runtime.current)} snapshots={snapshots} elapsed={elapsed} countdown={countdown} heat={heat} scores={scores} tips={PLAYER_IDS.map(id=>localTip(snapshots.find(s=>s.id===id)))} onHold={onHold} onReset={onStart} onCancelInput={onCancelInput} loaded={loaded} phoneRoom={roomCode||undefined} phoneReady={ready} onPhoneParty={()=>setPartyOpen(true)} muted={muted} finishCountdown={finishCountdown} onToggleSound={toggleSound}/>
+  <DerbyUI soundControls={<SoundControls soundtrack={soundtrack} muted={muted} onToggleSound={toggleSound}/>} cameraMode={cameraMode} onToggleCamera={toggleCamera} onLandingChange={onLandingChange} raceMoment={raceMoment} reverseArrows={reverseArrows} onReverseArrowsChange={changeArrowDirection} mode={mode} onModeChange={onModeChange} onPause={onPause} onSteer={onSteer} stage={stage} builds={builds} racerIds={racerIds} partyPlayers={players} onBuildChange={onBuildChange} onStart={onStart} onNext={()=>runtime.current&&nextHeat(runtime.current)} onRematch={()=>runtime.current&&rematch(runtime.current)} snapshots={snapshots} elapsed={elapsed} countdown={countdown} heat={heat} scores={scores} tips={PLAYER_IDS.map(id=>localTip(snapshots.find(s=>s.id===id)))} onHold={onHold} onReset={onStart} onCancelInput={onCancelInput} loaded={loaded} phoneRoom={roomCode||undefined} phoneReady={ready} onPhoneParty={()=>setPartyOpen(true)} muted={muted} finishCountdown={finishCountdown} onToggleSound={toggleSound}/>
   {paused&&(stage==='racing'||stage==='countdown')&&<div className="party-pause"><strong>QUICK PIT STOP</strong><p>{roomCode?'Keep this spectator screen open and reconnect the racers. The race resumes together.':'Take a breath. The hill can wait.'}</p>{!roomCode&&mode==='solo'&&<label className="steering-preference"><input type="checkbox" checked={reverseArrows} onChange={event=>changeArrowDirection(event.target.checked)}/><span>Reverse arrow keys</span></label>}<button className="phone-party-button" onClick={()=>roomCode?setPartyOpen(true):onPause()}>{roomCode?`ROOM ${roomCode}`:'Resume race'}</button></div>}
   <PhonePartyPanel open={partyOpen} onOpenChange={setPartyOpen} code={roomCode||undefined} players={players} busy={partyBusy} error={partyError} onCreate={()=>void createParty()} onClose={()=>void closeParty()}/>
   {error&&<div role="alert" style={{position:'fixed',bottom:20,left:20,right:20,zIndex:50,background:'#fff',padding:24,border:'3px solid #222'}}>The game could not start: {error}. Try refreshing in a browser with WebGL enabled.</div>}
