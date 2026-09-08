@@ -1,6 +1,6 @@
 'use client';
+/* oxlint-disable next/no-html-link-for-pages -- Native navigation avoids Vinext production export mismatch. */
 import Image from 'next/image';
-import Link from 'next/link';
 
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { Copy, Check, Smartphone } from 'lucide-react';
@@ -17,15 +17,16 @@ export function PartyJoinCode({ code }: { code: string }) {
   const [qr, setQr] = useState<{ code: string; data: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const origin = useSyncExternalStore(subscribeOrigin, () => window.location.origin, () => '');
-  const link = `${origin}/play?room=${encodeURIComponent(code)}`;
+  const debug = useSyncExternalStore(subscribeOrigin, () => new URLSearchParams(window.location.search).get('debug') === '1', () => false);
+  const link = `${origin}/play?room=${encodeURIComponent(code)}${debug ? '&debug=1' : ''}`;
   useEffect(() => {
     let cancelled = false;
-    void import('qrcode').then(q => q.toDataURL(`${window.location.origin}/play?room=${encodeURIComponent(code)}`, { width: 300, margin: 2, color: { dark: '#163C32', light: '#ffffff' } }))
+    void import('qrcode').then(q => q.toDataURL(link, { width: 300, margin: 2, color: { dark: '#163C32', light: '#ffffff' } }))
       .then(data => { if (!cancelled) setQr({ code, data }); }).catch(() => {});
     return () => { cancelled = true; };
-  }, [code]);
+  }, [code, link]);
   async function copy() { try { await navigator.clipboard.writeText(link); setCopied(true); } catch { setCopied(false); } }
-  return <div className="party-pairing"><div className="party-qr">{qr?.code === code ? <Image unoptimized src={qr.data} width={210} height={210} alt={`Scan to join room ${code}`}/> : <Smartphone size={64}/>}</div><div className="party-code"><span>SCAN TO JOIN · OR ENTER CODE</span><strong>{code}</strong><Link href="/play" target="_blank" rel="noreferrer">{origin.replace(/^https?:\/\//, '')}/play</Link><Button variant="outline" className="copy-link" onClick={copy}>{copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? 'Copied!' : 'Copy invite'}</Button></div></div>;
+  return <div className="party-pairing"><div className="party-qr">{qr?.code === code ? <Image unoptimized src={qr.data} width={210} height={210} alt={`Scan to join room ${code}`}/> : <Smartphone size={64}/>}</div><div className="party-code"><span>SCAN TO JOIN · OR ENTER CODE</span><strong>{code}</strong><a href="/play" target="_blank" rel="noreferrer">{origin.replace(/^https?:\/\//, '')}/play</a><Button variant="outline" className="copy-link" onClick={copy}>{copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? 'Copied!' : 'Copy invite'}</Button></div></div>;
 }
 export function PartySeats({ players, builds, ready }: { players: PartyPlayer[]; builds?: Blueprint[]; ready?: boolean[] }) {
   return <div className="party-seats">{PLAYER_IDS.map(id => {
@@ -46,6 +47,6 @@ export default function PhonePartyPanel({ open, onOpenChange, code, players, bus
     if (code && requested.current) { requested.current = false; onOpenChange(false); return; }
     if (!code && !busy && !error && !requested.current) { requested.current = true; onCreate(); }
   }, [open, code, busy, error, onCreate, onOpenChange]);
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="phone-party-panel"><SiliconBrand compact/><DialogTitle className="party-title">{code ? 'Your friends. Your hill.' : 'Opening your room…'}</DialogTitle><DialogDescription className="party-description">{code ? '2–4 players join on their phones. Keep this screen open to watch the race.' : 'Your phone is your controller. No app needed.'}</DialogDescription>{code ? <><PartyJoinCode code={code}/><div className="party-actions"><Button variant="outline" onClick={onClose} disabled={busy}>End room</Button><Button className="start-button" onClick={() => onOpenChange(false)}>See the lobby <ArrowRightIcon/></Button></div><p className="party-note">{players.filter(p => p.connected).length} of 4 racers connected</p></> : <div className="party-opening">{error ? <><p role="alert" className="party-error">{error}</p><Button className="start-button" onClick={onCreate} disabled={busy}>{busy ? 'Trying again…' : 'Try again'}</Button></> : <output className="loading-dots">Getting the crew together…</output>}<Link href="/play" className="party-join-link">Have a code? Join a race</Link></div>}</DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="phone-party-panel"><SiliconBrand compact/><DialogTitle className="party-title">{code ? 'Your friends. Your hill.' : 'Opening your room…'}</DialogTitle><DialogDescription className="party-description">{code ? '2–4 players join on their phones. Keep this screen open to watch the race.' : 'Your phone is your controller. No app needed.'}</DialogDescription>{code ? <><PartyJoinCode code={code}/><div className="party-actions"><Button variant="outline" onClick={onClose} disabled={busy}>End room</Button><Button className="start-button" onClick={() => onOpenChange(false)}>See the lobby <ArrowRightIcon/></Button></div><p className="party-note">{players.filter(p => p.connected).length} of 4 racers connected</p></> : <div className="party-opening">{error ? <><p role="alert" className="party-error">{error}</p><Button className="start-button" onClick={onCreate} disabled={busy}>{busy ? 'Trying again…' : 'Try again'}</Button></> : <output className="loading-dots">Getting the crew together…</output>}<a href="/play" className="party-join-link">Have a code? Join a race</a></div>}</DialogContent></Dialog>;
 }
 function ArrowRightIcon() { return <span aria-hidden="true">→</span>; }
