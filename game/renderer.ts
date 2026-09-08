@@ -29,6 +29,9 @@ export const CHASE_CAMERA = {
  teleportDistance: 14,
 } as const;
 
+export type RendererProfile = 'default' | 'phone';
+export interface RendererOptions { profile?: RendererProfile }
+
 type Car = { chassis: THREE.Group; wheels: THREE.Group[]; shadow: THREE.Mesh; effects: RaceEffects };
 type CameraRig = { ready: boolean; aim: THREE.Vector3; previousPosition: THREE.Vector3; recovering: boolean; recoveries: number };
 type Viewport = { x: number; y: number; width: number; height: number };
@@ -51,6 +54,7 @@ export class DerbyRenderer {
  width = 1;
  height = 1;
  resizeObserver: ResizeObserver;
+ private readonly phone: boolean;
  private plinths: THREE.Mesh[] = [];
  private cameraRigs: CameraRig[] = Array.from({ length: MAX_RACERS }, () => ({ ready: false, aim: new THREE.Vector3(), previousPosition: new THREE.Vector3(), recovering: false, recoveries: 0 }));
  private motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -60,24 +64,26 @@ export class DerbyRenderer {
  private positionTarget = new THREE.Vector3();
  private aimTarget = new THREE.Vector3();
 
- constructor(parent: HTMLElement) {
+ constructor(parent: HTMLElement, options: RendererOptions = {}) {
   this.parent = parent;
-  this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-  this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-  this.renderer.shadowMap.enabled = true;
+  this.phone = options.profile === 'phone';
+  this.renderer = new THREE.WebGLRenderer({ antialias: !this.phone, alpha: false, powerPreference: 'high-performance' });
+  this.renderer.setPixelRatio(this.phone ? 1 : Math.min(window.devicePixelRatio, 1.5));
+  this.renderer.shadowMap.enabled = !this.phone;
   this.renderer.shadowMap.type = THREE.PCFShadowMap;
   this.renderer.outputColorSpace = THREE.SRGBColorSpace;
   this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
   this.renderer.toneMappingExposure = 1.25;
   parent.appendChild(this.renderer.domElement);
   this.scene.background = new THREE.Color(0xade2ef);
-  this.scene.fog = new THREE.Fog(0xade2ef, 85, 205);
+  this.scene.fog = new THREE.Fog(0xade2ef, this.phone ? 52 : 85, this.phone ? 105 : 205);
+  if (this.phone) this.cameras.forEach(camera => { camera.far = 110; camera.updateProjectionMatrix(); });
   this.showroom.background = new THREE.Color(0xafdcd9);
   for (const scene of [this.scene, this.showroom]) {
    scene.add(new THREE.HemisphereLight(0xfffbdd, 0x4b7a67, 2.5));
    const light = new THREE.DirectionalLight(0xfff3d6, 3);
    light.position.set(-20, 50, -25);
-   light.castShadow = true;
+   light.castShadow = !this.phone;
    light.shadow.mapSize.set(2048, 2048);
    light.shadow.camera.left = -35;
    light.shadow.camera.right = 35;
@@ -89,7 +95,8 @@ export class DerbyRenderer {
    scene.add(light.target);
    if (scene === this.scene) this.raceLight = light;
   }
-  this.scene.add(batchStaticTrack(createTrackScene()));
+  this.scene.add(batchStaticTrack(createTrackScene({ lowDetail: this.phone })));
+  if (!this.phone) {
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0xafdcd9, roughness: 1 }));
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.3;
@@ -100,6 +107,7 @@ export class DerbyRenderer {
    plinth.receiveShadow = true;
    this.showroom.add(plinth);
    this.plinths.push(plinth);
+  }
   }
   this.showroomCamera.position.set(-13, 13, 22);
   this.showroomCamera.lookAt(0, 0.8, 0);
@@ -135,6 +143,7 @@ export class DerbyRenderer {
    const effects = new RaceEffects(COLORS[i]);
    this.scene.add(chassis, shadow, effects.group, ...wheels);
    this.cars.push({ chassis, wheels, shadow, effects });
+   if (this.phone) return;
    const preview = new THREE.Group();
    const body = getBody(build.bodyId), wheel = getWheel(build.wheelId);
    const model = createVehicleModel(build, COLORS[i]);
@@ -210,6 +219,7 @@ export class DerbyRenderer {
   const frameDt = Math.min(Math.max(dt, 0), 0.1);
   const focused = focusPlayerId !== undefined;
   if (stage === 'garage') {
+   if (this.phone) return;
    this.renderer.setScissorTest(false);
    this.renderer.setViewport(0, 0, this.width, this.height);
    this.previewCars.forEach((car, i) => {
@@ -255,7 +265,7 @@ export class DerbyRenderer {
    car.shadow.scale.set(1, 1.55, 1);
    car.effects.update(snapshot, frameDt, stage === 'racing', this.reducedMotion);
    const view = this.viewport(0, displayed.length, focused);
-   this.updateCamera(snapshot, frameDt, view.width / view.height, focused);
+   if (!focused || snapshot.id === focusPlayerId) this.updateCamera(snapshot, frameDt, view.width / view.height, focused);
   }
   if (this.raceLight && snapshots.length) {
    const focus = focused ? snapshots.find(snapshot => snapshot.id === focusPlayerId) : undefined;
