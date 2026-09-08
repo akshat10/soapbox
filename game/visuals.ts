@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Blueprint, BodyDef } from './types';
 import { getBody, getWheel } from './catalogue';
+import { cloneModel } from './assets';
 import { TRACK_PIECES, START_Z, FINISH_Z, COURSE_MARKERS, groundHeight } from './track';
 
 const INK = 0x283340;
@@ -310,7 +311,9 @@ export function createVehicleModel(blueprint: Blueprint, playerColor: number): T
   const body = getBody(blueprint.bodyId);
   const group = new THREE.Group();
   group.name = `vehicle-${body.id}`;
-  builders[body.id](group, body);
+  const authored = body.id === 'toaster' ? cloneModel('toaster') : undefined;
+  if (authored) group.add(authored);
+  else builders[body.id](group, body);
   box(group, body.width * 0.76, 0.13, body.length * 0.76, INK, 0, -body.height * 0.47, 0);
   driver(group, body, playerColor);
   const pennant = new THREE.Group();
@@ -329,6 +332,11 @@ export function createVehicleModel(blueprint: Blueprint, playerColor: number): T
 /** Wheels rotate about local X. */
 export function createWheelModel(blueprint: Blueprint, playerColor: number): THREE.Group {
   const wheel = getWheel(blueprint.wheelId);
+  const authored = wheel.id === 'standard' ? cloneModel('wheel', { PlayerColor: playerColor }) : undefined;
+  if (authored) {
+    authored.name = `wheel-${wheel.id}`;
+    return authored;
+  }
   const group = new THREE.Group();
   group.name = `wheel-${wheel.id}`;
   const width = wheel.id === 'monster' ? 0.43 : wheel.id === 'casters' ? 0.18 : 0.27;
@@ -410,6 +418,14 @@ function sign(group: THREE.Group, text: string, x: number, y: number, z: number,
 }
 
 function paintedLady(group: THREE.Group, x: number, y: number, z: number, color: number, index: number): void {
+  const authored = cloneModel('house', { Facade: color });
+  if (authored) {
+    authored.position.set(x, y, z);
+    authored.rotation.y = Math.PI / 2;
+    authored.scale.y = (4.5 + (index % 2) * 0.55) / 4.5;
+    group.add(authored);
+    return;
+  }
   const house = new THREE.Group();
   const width = 3.3;
   const height = 4.5 + (index % 2) * 0.55;

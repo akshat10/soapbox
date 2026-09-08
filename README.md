@@ -15,6 +15,19 @@ Choose one of 12 household vehicles, one of three wheel sets, and a wheelbase wi
 - Recoveries return to the last safe checkpoint, including its recorded forward velocity. Time continues; recovery never moves the vehicle ahead of that checkpoint.
 - Three heats, with build changes between them. A heat win earns 3 points, second earns 1; equal results earn 2 each. Unfinished vehicles rank behind finishers by current valid course progress at the 60-second timeout.
 
+## Phone party
+
+The published site is public. Anyone with its link can play; no sign-in is required.
+
+1. Open the game on the shared computer/TV and choose **Play with phones**.
+2. Create a room. Each player scans its QR code, or opens `/play` and enters the six-character code.
+3. Pick parts on each phone and tap **Ready to roll**. Start the heat on the shared screen.
+4. Hold the large phone button to charge; release to hop. Race views and scoring stay on the shared screen.
+
+Rooms support two phones and expire after two hours. Keep the shared screen open. A dropped controller pauses the simulation, and returning to the same phone tab restores its player slot. Ending a phone party returns to keyboard mode. Refreshing the shared screen requires a new room.
+
+The shared browser is authoritative for physics and outcomes. WebRTC carries input directly when possible, with a server relay fallback when direct connectivity is unavailable. Relay controls can respond more slowly; real-device latency needs broader playtesting. Phones display individual garage, charge, progress and results without running a second 3D simulation.
+
 ## Run locally
 
 Requires Node 22.13 or newer.
@@ -24,7 +37,7 @@ npm install
 npm run dev
 ```
 
-Open the local address printed by the server, normally http://localhost:3000/.
+Open the local address printed by the server. Phone rooms also require the local D1 migration (the published site applies it automatically). After building, run `npx wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_abnormal_black_tarantula.sql`. For actual phones, use the published HTTPS URL.
 
 ```sh
 npm run build
@@ -45,7 +58,7 @@ On machines with an incompatible globally installed libvips, install with `SHARP
 
 ## Current limits
 
-This is an early playable milestone. The road follows simple contained lanes; Lombard is visual inspiration, not a geographically accurate winding driving route. There is no free steering, online multiplayer, vehicle-to-vehicle collision, or detailed destruction.
+This is an early playable milestone. The road follows simple contained lanes; Lombard is visual inspiration, not a geographically accurate winding driving route. There is no free steering, independent remote race view, vehicle-to-vehicle collision, or detailed destruction. Phone-party mode uses one shared race screen.
 
 Live Astra integration, validated accept/restore revisions, persistent build history, and deeper tuning remain for the next iteration. Local tips do not call a model. No API key is needed for this version.
 
