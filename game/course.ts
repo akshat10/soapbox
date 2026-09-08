@@ -22,6 +22,8 @@ export class DerbyCourse {
   readonly enabledPaths = ['main'];
   readonly paths: Path[] = layout.paths;
   readonly sectors = layout.sectors;
+  readonly maxSampleSpacing = Math.max(...layout.paths.flatMap(path =>
+    path.samples.slice(1).map((sample, index) => sample.s - path.samples[index].s)));
 
   private path(id: string): Path {
     const path = this.paths.find(path => path.id === id);
