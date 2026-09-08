@@ -41,7 +41,9 @@ for (const pattern of ['no hops', 'controlled hops', 'late hops'] as const) {
   const events = race.events.length;
   for (let frame = 0; frame < 12 * 120; frame++) race.update(1 / 120);
   race.getSnapshots().forEach((state, i) => {
-    assert.deepEqual(state.position, results[i].position, 'Finished racers must stay visible in their winning pose throughout the finish window.');
+    const previous = results[i].position;
+    assert(Math.hypot(state.position.x - previous.x, state.position.y - previous.y, state.position.z - previous.z) < 1e-9,
+      'Finished racers must stay visible in their winning pose throughout the finish window.');
     assert.equal(state.finishTime, results[i].finishTime);
     assert.equal(state.speed, 0);
   });

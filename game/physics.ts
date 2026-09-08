@@ -47,6 +47,7 @@ interface Racer {
   steeringAngle: number;
   wheelbaseLength: number;
   route: RoadProjection | null;
+  lastCoursePosition: Vec3;
   validCourseDistance: number;
   offRoadSeconds: number;
   held: boolean;
@@ -188,7 +189,7 @@ export class DerbyPhysics {
     const racer: Racer = {
       id, blueprint: { ...blueprint }, chassis, vehicle, laneAnchor, laneConstraint,
       steering: 0, steeringAngle: 0, wheelbaseLength: Math.abs(wheelMounts(blueprint)[0][2] - wheelMounts(blueprint)[2][2]),
-      route: null, validCourseDistance: this.course?.startDistance ?? START_Z, offRoadSeconds: 0,
+      route: null, lastCoursePosition: new Vec3(), validCourseDistance: this.course?.startDistance ?? START_Z, offRoadSeconds: 0,
       held: false, charge: 0, grounded: false, launchLock: 0, recoveryLeft: 0,
       finished: false, finishTime: null, flips: 0, recoveries: 0, jumps: 0, maxRoll: 0,
       overturnedSeconds: 0, stalledSeconds: 0, checkpointZ: START_Z,
@@ -380,9 +381,18 @@ export class DerbyPhysics {
       const previous = racer.route ?? { pathId: 'main', distance: this.course.startDistance };
       const projection = this.course.project(position, previous);
       const plausibleTravel = Math.max(0.15, racer.chassis.velocity.length() * STEP * 2 + 0.1);
-      const continuous = Math.abs(projection.distance - previous.distance) <= plausibleTravel;
+      // On an inside bend, nearest-segment projection can jump across a road
+      // sample even though the car moves only centimetres. Allow that seam in
+      // course distance, but independently verify actual chassis travel so a
+      // relocation cannot earn progress. Keep the last accepted position on
+      // rejection; a stationary teleported car must still recover.
+      const continuous = position.distanceTo(racer.lastCoursePosition) <= plausibleTravel
+        && Math.abs(projection.distance - previous.distance) <= plausibleTravel + this.course.maxSampleSpacing;
       const onRoad = projection.separation <= projection.width / 2 + 0.7 && projection.height > -2.5;
-      if (continuous) racer.route = projection;
+      if (continuous) {
+        racer.route = projection;
+        racer.lastCoursePosition.copy(position);
+      }
       if (continuous && onRoad) racer.validCourseDistance = projection.mainDistance;
       racer.offRoadSeconds = continuous && onRoad ? 0 : racer.offRoadSeconds + STEP;
       forwardSpeed = racer.chassis.velocity.dot(projection.tangent);
@@ -491,6 +501,7 @@ export class DerbyPhysics {
       racer.chassis.position.set(LANE_CENTERS[racer.id], groundHeight(z) + height, z);
     }
     racer.chassis.previousPosition.copy(racer.chassis.position);
+    racer.lastCoursePosition.copy(racer.chassis.position);
     racer.chassis.interpolatedPosition.copy(racer.chassis.position);
     racer.chassis.previousQuaternion.copy(racer.chassis.quaternion);
     racer.chassis.interpolatedQuaternion.copy(racer.chassis.quaternion);
