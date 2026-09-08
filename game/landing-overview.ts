@@ -58,7 +58,8 @@ export function fitOverviewCamera(camera: OrthographicCamera, aspect: number): v
   camera.left = x - halfWidth; camera.right = x + halfWidth;
   camera.bottom = y - halfHeight; camera.top = y + halfHeight;
   camera.zoom = 1;
-  camera.near = Math.max(.01, nearest - 10);
-  camera.far = Math.max(camera.near + 1, farthest + 10);
+  // Keep the course framing while allowing the deeper city behind it to render.
+  camera.near = Math.max(.01, nearest - 180);
+  camera.far = Math.max(camera.near + 1, farthest + 250);
   camera.updateProjectionMatrix();
 }
