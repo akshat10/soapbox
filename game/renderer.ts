@@ -283,10 +283,10 @@ export class DerbyRenderer {
    const preview = focused ? this.previewCars[focusPlayerId] : undefined;
    if (preview) {
     const { x, z } = preview.position;
-    const distance = this.width / this.height < 0.7 ? 1.3 : 1;
+    // Fit the complete turntable within the dedicated preview pane.
+    const distance = Math.max(1.15, 0.95 / this.showroomCamera.aspect);
     this.showroomCamera.position.set(x - 6.8 * distance, 5.2 * distance, z + 8.5 * distance);
-    if(this.width > 800)this.showroomCamera.setViewOffset(this.width,this.height,-this.width * .205,-this.height * .01,this.width,this.height);
-    else this.showroomCamera.clearViewOffset();
+    this.showroomCamera.clearViewOffset();
     this.showroomCamera.lookAt(x, 0.8, z);
    } else {
     this.showroomCamera.clearViewOffset();
