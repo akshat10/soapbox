@@ -1,6 +1,6 @@
 # Silicon Racer · Doodle Derby
 
-A playable 3D soapbox racing game. The main mode is a solo Grand Prix against three local AI rivals on **Bay or Bust**, the authored San Francisco course. Arrow keys steer and Space/F controls charged hops. Phone multiplayer and the two-player keyboard mode remain available on the original course.
+A playable 3D soapbox racing game. The main mode is a solo Grand Prix against three local AI rivals on **Bay or Bust**, the authored San Francisco course. Arrow keys steer and Space/F controls charged hops. Two players can race the same map with independent steering and split-screen cameras. Phone multiplayer remains available on the original course.
 
 [Play Silicon Racer](https://doodle-derby-akshat.quiteparticular.chatgpt.site) · [Source repository](https://github.com/akshat10/soapbox)
 
@@ -12,17 +12,25 @@ Choose **Race solo**, build your racer, then choose **Let’s race**. No room, p
 - **Escape** or the pause button pauses. Leaving the local game window also pauses; choose Resume to continue. Restart resets the current heat.
 - Race Mission Control, Rent Controlled, and Toast Malone through three heats. Change your build between heats, then play again from the final podium.
 - The AI uses physical steering and the same hold/release input as you, evaluated at the 120 Hz physics cadence. It cannot change speed, position, progress, builds, or scoring.
-- Bay or Bust is a 431.54 m, single-path authored course through Lombard Gardens, Lantern Quarter, Golden Gate Leap, Mission Market, SoMa Circuit, and Pier Pressure. Its visible road and collider share the same path frames. Solo has a 90-second maximum and a 12-second finish window after the first finisher.
+- Bay or Bust is a 431.54 m, single-path authored course through Lombard Gardens, Lantern Quarter, Golden Gate Leap, Mission Market, SoMa Circuit, and Pier Pressure. Its visible road and collider share the same path frames. Solo allows the full 90-second maximum even when a bot finishes first; it ends sooner when all racers finish.
 - The course features native neighborhood and bridge geometry, bay water, a coastal sky, textured asphalt and Victorian siding, fine foliage, decorative lantern/crowd animation, a full-screen chase camera, course progress, standings, and speed. Moving road furniture remains static until gameplay collision is implemented.
 - Three AI opponents have been checked headlessly on the entire course with identical outcomes at 30/60/120 Hz. All 15 chassis complete the course with scooter wheels and regular spacing in a repeatable driving check (14 without recovery; the arcade cabinet with one recovery). Precise steering and hop timing can win with the starter build. These repeatable checks do not replace manual playtesting on actual devices.
 
-## Original keyboard / phone course
+## Two-player keyboard race
+
+Choose **2 players on this keyboard** from the garage. Both players race the same Bay or Bust road, bridge, neighborhoods, and waterfront as solo, each with a camera following their car.
+
+- Player 1: **A / D** to steer; hold **F** to charge, release to hop.
+- Player 2: **Left / right arrows** to steer; hold **J** to charge, release to hop.
+- Each side also has independent touch/mouse steering and hop controls.
+- Three heats, with build changes between them, standings, and a championship podium. Each heat allows up to 90 seconds, with a visible 12-second finish window after the leader finishes.
+- **Escape** pauses the shared race. Leaving the game window also pauses both players; choose Resume to continue.
+
+## Original phone course
 
 Choose an SF original (sourdough loaf, Mission burrito, or Victorian porch) or a classic household ride. Choose wheels and axle spacing within a ten-bolt budget.
 
-- Player 1: hold **F** to charge, release to hop.
-- Player 2: hold **J** to charge, release to hop.
-- Touch/mouse: hold and release the corresponding colored control.
+- Each phone: hold the thumb control to charge, release to hop.
 - Charge only builds while wheels are grounded. It caps after 0.8 seconds.
 - Gravity drives the vehicle. Lanes constrain sideways movement and steering; pitch, roll, suspension, jumps, collisions, and landings use a real 3D physics simulation.
 - At the Golden Gate gap, begin holding near the HOLD marking and release over the HOP marking before the edge.
@@ -73,7 +81,7 @@ On machines with an incompatible globally installed libvips, install with `SHARP
 
 ## Current limits
 
-This is an early playable milestone. Short takeoff grace and landing-release buffering make timing more forgiving. The road follows simple contained lanes; Lombard is visual inspiration, not a geographically accurate winding driving route. There is no free steering, vehicle-to-vehicle collision, or detailed destruction. Phones have their own race views; the spectator browser remains the required race host.
+This is an early playable milestone. Short takeoff grace and landing-release buffering make timing more forgiving. Solo and two-player keyboard races use physical steering on the authored curved road. The phone course follows contained lanes with hop-only controls. The neighborhoods are SF-inspired rather than geographically accurate. There is no vehicle-to-vehicle collision or detailed destruction. Phones have their own race views; the spectator browser remains the required race host.
 
 Live Astra integration, validated accept/restore revisions, persistent build history, and deeper tuning remain for the next iteration. Local tips do not call a model. No API key is needed for this version.
 
@@ -100,3 +108,7 @@ Room API regression checks: `node --import tsx game/party-check.ts` (Node 24 rec
 Four-player checks: `node --import tsx game/race-check.ts`, `node --import tsx game/party-input-check.ts`. These exercise four-lane fairness, sparse slots, tap handling, placements/ties, complete pose transmission, readiness across heats, and connection handovers.
 
 Solo checks: `node --import tsx game/solo-check.ts` covers the classic course AI baseline; `node --import tsx game/course-solo-check.ts` covers the authored course, physical AI steering, control isolation, normal scoring, frame-rate consistency, pause, and mode reset. `game/course-driving-check.ts` and `game/steering-check.ts` exercise the underlying authored road and steering system.
+
+Lantern Quarter regression: `node --import tsx game/course-recovery-check.ts` covers complete runs using binary arrow inputs, inside driving lines, loss of momentum, and rejection of physical relocations. Progress tracking allows for the sampled road's inside-corner projection seams while independently validating actual car movement.
+
+Two-player keyboard checks: `node --import tsx game/local-race-check.ts` covers the shared course, separate steering/hop inputs, input clearing, mode resets, and heat timing.
