@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { groundHeight } from './track';
+import { BAY_OR_BUST_COURSE as course } from './course';
 import type { VehicleSnapshot } from './types';
 
 const CHARGE_SEGMENTS = 64;
@@ -36,9 +37,13 @@ export class RaceEffects {
  }
 
  update(snapshot: VehicleSnapshot, dt: number, active: boolean, reducedMotion: boolean) {
-  const ground = groundHeight(snapshot.position.z);
+  const surface=snapshot.courseId==='bay-or-bust'&&snapshot.pathDistance!==undefined?course.project(snapshot.position,{distance:snapshot.pathDistance,pathId:snapshot.pathId||'main'}):null;
+  const point=surface?.position.vadd(surface.right.scale(surface.lateral));
+  const ground = point?.y ?? groundHeight(snapshot.position.z);
   this.charge.visible = active && snapshot.grounded && snapshot.charge > 0.025 && !snapshot.recovering && !snapshot.finished;
   this.charge.position.set(snapshot.position.x, ground + 0.09, snapshot.position.z);
+  this.charge.rotation.x = -Math.PI / 2 + Math.atan2(groundHeight(snapshot.position.z + .25) - groundHeight(snapshot.position.z - .25), .5);
+  if(surface)this.charge.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),new THREE.Vector3(surface.up.x,surface.up.y,surface.up.z));
   this.charge.geometry.setDrawRange(0, Math.ceil(snapshot.charge * CHARGE_SEGMENTS) * 6);
   this.charge.material.color.setHex(snapshot.charge > 0.92 ? 0xffde49 : 0xfff6d5);
 

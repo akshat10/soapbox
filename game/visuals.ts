@@ -638,7 +638,7 @@ export function createTrackScene({ lowDetail = false }: { lowDetail?: boolean } 
 
   const startZ = START_Z;
   const startY = heightAt(startZ);
-  sign(group, 'DOODLE DERBY', -10.7, startY, startZ + 1, 0xf4d06b);
+  sign(group, 'SILICON RACER', -10.7, startY, startZ + 1, 0xf4d06b);
   for (const side of [-1, 1]) {
     const pit = box(group, 3.2, 0.25, 4.5, side < 0 ? 0xe79c71 : 0x8cbad0, side * 11.2, startY - 0.15, startZ - 5);
     pit.rotation.y = side * 0.08;

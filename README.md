@@ -1,10 +1,22 @@
 # Silicon Racer · Doodle Derby
 
-A playable 3D soapbox party game on a San Francisco-inspired downhill course. Two to four players race on their own phones while a shared computer/TV runs the simulation and shows every racer. A two-player keyboard mode is also available.
+A playable 3D soapbox racing game. The main mode is a solo Grand Prix against three local AI rivals on **Bay or Bust**, the authored San Francisco course. Arrow keys steer and Space/F controls charged hops. Phone multiplayer and the two-player keyboard mode remain available on the original course.
 
 [Play Silicon Racer](https://doodle-derby-akshat.quiteparticular.chatgpt.site) · [Source repository](https://github.com/akshat10/soapbox)
 
-## Play
+## Solo Grand Prix
+
+Choose **Race solo**, build your racer, then choose **Let’s race**. No room, phone pairing, or model API is required.
+
+- **Left/right arrow keys** steer the front tires. Hold **Space** or **F** to charge; release to hop. Touch controls provide separate steering and hop buttons.
+- **Escape** or the pause button pauses. Leaving the local game window also pauses; choose Resume to continue. Restart resets the current heat.
+- Race Mission Control, Rent Controlled, and Toast Malone through three heats. Change your build between heats, then play again from the final podium.
+- The AI uses physical steering and the same hold/release input as you, evaluated at the 120 Hz physics cadence. It cannot change speed, position, progress, builds, or scoring.
+- Bay or Bust is a 431.54 m, single-path authored course through Lombard Gardens, Lantern Quarter, Golden Gate Leap, Mission Market, SoMa Circuit, and Pier Pressure. Its visible road and collider share the same path frames. Solo has a 90-second maximum and a 12-second finish window after the first finisher.
+- The course features native neighborhood and bridge geometry, bay water, a coastal sky, textured asphalt and Victorian siding, fine foliage, decorative lantern/crowd animation, a full-screen chase camera, course progress, standings, and speed. Moving road furniture remains static until gameplay collision is implemented.
+- Three AI opponents have been checked headlessly on the entire course with identical outcomes at 30/60/120 Hz. All 15 chassis complete the course with scooter wheels and regular spacing in a repeatable driving check (14 without recovery; the arcade cabinet with one recovery). Precise steering and hop timing can win with the starter build. These repeatable checks do not replace manual playtesting on actual devices.
+
+## Original keyboard / phone course
 
 Choose an SF original (sourdough loaf, Mission burrito, or Victorian porch) or a classic household ride. Choose wheels and axle spacing within a ten-bolt budget.
 
@@ -27,7 +39,7 @@ The published site is public. Anyone with its link can play; no sign-in is requi
 4. Each phone shows its own live 3D chase view. Hold the thumb button to charge; release to hop. The big screen shows all racers for spectators.
 5. After a short podium, the next garage opens automatically. Ready up on the phones for the next heat, or for a rematch after the championship.
 
-Rooms support four phones and expire after two hours. Keep the shared screen open. A dropped controller pauses the simulation, and returning to the same phone tab restores its player slot. Ending a phone party returns to keyboard mode. Refreshing the shared screen requires a new room.
+Rooms support four phones and expire after two hours. Keep the shared screen open. A dropped controller pauses the simulation, and returning to the same phone tab restores its player slot. Ending a phone party returns to the previously selected local mode. Refreshing the shared screen requires a new room.
 
 The shared browser is authoritative for physics and outcomes. WebRTC sends inputs and full car/wheel poses directly when available (up to 30 updates per second). An HTTP relay provides a fallback, with ordered input sequence numbers preventing duplicate hops during handovers. Phones interpolate received poses, use a capped rendering resolution and omit expensive real-time shadows. Relay latency and actual device performance still need broader playtesting. Late joiners enter the next heat. The spectator screen must remain open and visible; this version does not run physics on a background server.
 
@@ -69,7 +81,7 @@ The repeatable physics checks exercise control rules, recovery, lane fairness, a
 
 ## Code ownership
 
-`game/physics.ts` owns simulation, `game/track.ts` owns shared terrain geometry, `game/catalogue.ts` owns build definitions and validation, `game/visuals.ts` owns models and scenery, `game/renderer.ts` owns cameras/rendering, and `components/DoodleDerby.tsx` owns the session and input integration. `components/DerbyUI.tsx` provides the garage and race screens.
+`game/physics.ts` owns simulation, `game/track.ts` owns shared terrain geometry, `game/catalogue.ts` owns build definitions and validation, `game/visuals.ts` owns models and scenery, `game/renderer.ts` owns cameras/rendering, `game/course-scene.ts` loads the authored environment, `game/solo.ts` owns local opponents, and `components/DoodleDerby.tsx` owns the session and input integration. `components/DerbyUI.tsx` provides the garage and race screens.
 
 ## Project materials
 
@@ -86,3 +98,5 @@ Proposed features in the planning documents are not necessarily implemented. The
 Room API regression checks: `node --import tsx game/party-check.ts` (Node 24 recommended for the built-in SQLite test fixture).
 
 Four-player checks: `node --import tsx game/race-check.ts`, `node --import tsx game/party-input-check.ts`. These exercise four-lane fairness, sparse slots, tap handling, placements/ties, complete pose transmission, readiness across heats, and connection handovers.
+
+Solo checks: `node --import tsx game/solo-check.ts` covers the classic course AI baseline; `node --import tsx game/course-solo-check.ts` covers the authored course, physical AI steering, control isolation, normal scoring, frame-rate consistency, pause, and mode reset. `game/course-driving-check.ts` and `game/steering-check.ts` exercise the underlying authored road and steering system.
