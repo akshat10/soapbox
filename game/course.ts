@@ -1,5 +1,6 @@
 import { Quaternion, Vec3 } from 'cannon-es';
 import layout from './course-layout.json';
+import { closeCourse } from './course-circuit';
 
 type Vector = { x: number; y: number; z: number };
 export type CourseLocation = { pathId: string; distance: number };
@@ -9,7 +10,8 @@ export interface RoadFrame extends CourseLocation {
 export interface RoadProjection extends RoadFrame {
   lateral: number; height: number; separation: number; mainDistance: number;
 }
-type Path = { id: string; mainEntryS?: number; mainRejoinS?: number; samples: { s: number; position: number[]; tangent: number[]; right: number[]; up: number[]; width: number; sector: string }[] };
+export type CoursePath = { id: string; mainEntryS?: number; mainRejoinS?: number; samples: { s: number; position: number[]; tangent: number[]; right: number[]; up: number[]; width: number; sector: string }[] };
+type Path = CoursePath;
 const vector = (values: number[]) => new Vec3(values[0], values[1], values[2]);
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
@@ -18,12 +20,18 @@ const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n
 export class DerbyCourse {
   readonly id = 'bay-or-bust' as const;
   readonly startDistance = 2.99951;
-  readonly finishDistance = 424.53976; // Painted finish, ahead of the 7m runoff.
+  readonly finishDistance: number;
   readonly enabledPaths = ['main'];
-  readonly paths: Path[] = layout.paths;
-  readonly sectors = layout.sectors;
+  readonly paths: Path[];
+  readonly sectors: typeof layout.sectors;
   readonly maxSampleSpacing = Math.max(...layout.paths.flatMap(path =>
     path.samples.slice(1).map((sample, index) => sample.s - path.samples[index].s)));
+
+  constructor(readonly circuit = false) {
+    this.paths = circuit ? [closeCourse(layout.paths[0])] : layout.paths;
+    this.finishDistance = circuit ? this.paths[0].samples.at(-1)!.s - .15 : 424.53976;
+    this.sectors = circuit ? [...layout.sectors, { name: 'Skyline Run', startS: 431.53867, endS: this.finishDistance+.15 }] : layout.sectors;
+  }
 
   private path(id: string): Path {
     const path = this.paths.find(path => path.id === id);
@@ -52,6 +60,12 @@ export class DerbyCourse {
     const up = tangent.cross(right); up.normalize();
     return { pathId, distance: s, position: mix('position'), tangent, right, up,
       width: a.width + (b.width - a.width) * t, sector: a.sector };
+  }
+
+  /** Camera, steering and throttle look across the seam before the car crosses. */
+  lookFrame(distance: number, pathId = 'main'): RoadFrame {
+    const length = this.path(pathId).samples.at(-1)!.s;
+    return this.frame(this.circuit ? ((distance % length) + length) % length : distance, pathId);
   }
 
   /** Continuity-bounded projection prevents a nearby hairpin granting progress. */
@@ -124,3 +138,5 @@ export class DerbyCourse {
 }
 
 export const BAY_OR_BUST_COURSE = new DerbyCourse();
+export const BAY_CIRCUIT_COURSE = new DerbyCourse(true);
+export const courseForSnapshot = (snapshot: { circuit?: boolean }): DerbyCourse => snapshot.circuit ? BAY_CIRCUIT_COURSE : BAY_OR_BUST_COURSE;

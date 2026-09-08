@@ -1,6 +1,6 @@
 # Silicon Racer · Doodle Derby
 
-A playable 3D soapbox racing game. The main mode is a solo Grand Prix against three local AI rivals on **Bay or Bust**, the authored San Francisco course. Arrow keys steer and Space/F controls charged hops. The release entry flow offers single player only. Legacy keyboard and phone multiplayer code is retained, with its entry points hidden.
+A playable 3D soapbox racing game. The main mode is a solo Grand Prix against three local AI rivals on **Bay or Bust**, the authored San Francisco circuit. Your ride accelerates automatically; arrow keys steer and Space/F controls charged hops. The release entry flow offers single player only. Legacy keyboard and phone multiplayer code is retained, with its entry points hidden.
 
 [Play Silicon Racer](https://doodle-derby-akshat.quiteparticular.chatgpt.site) · [Source repository](https://github.com/akshat10/soapbox)
 
@@ -8,13 +8,14 @@ A playable 3D soapbox racing game. The main mode is a solo Grand Prix against th
 
 Choose **Race solo**, build your racer, then choose **Let’s race**. No room, phone pairing, or model API is required.
 
-- **Left/right arrow keys** steer the front tires. Hold **Space** or **F** to charge; release to hop. Touch controls provide separate steering and hop buttons.
+- **Left/right arrow keys** steer the front tires. The requested reversed direction is the default; **Reverse arrow keys** in the garage, help, or pause screen saves your preference. Hold **Space** or **F** to charge; release to hop. Touch controls provide separate steering and hop buttons.
 - **Escape** or the pause button pauses. Leaving the local game window also pauses; choose Resume to continue. Restart resets the current heat.
-- Race Mission Control, Rent Controlled, and Toast Malone through three heats. Change your build between heats, then play again from the final podium.
-- The AI uses physical steering and the same hold/release input as you, evaluated at the 120 Hz physics cadence. It cannot change speed, position, progress, builds, or scoring.
-- Bay or Bust is a 431.54 m, single-path authored course through Lombard Gardens, Lantern Quarter, Golden Gate Leap, Mission Market, SoMa Circuit, and Pier Pressure. Its visible road and collider share the same path frames. Solo allows the full 90-second maximum even when a bot finishes first; it ends sooner when all racers finish.
+- Race Mission Control, Rent Controlled, and Toast Malone through three heats, with three laps per heat. Change your build between heats, then play again from the final podium.
+- The AI uses physical steering and the same hold/release input as you, evaluated at the 120 Hz physics cadence. The same automatic drive and traction rules apply to every car; the AI cannot directly set speed, position, progress, builds, or scoring.
+- Bay or Bust connects the original 431.54 m downhill road through Lombard Gardens, Lantern Quarter, Golden Gate Leap, Mission Market, SoMa Circuit, and Pier Pressure to the uphill Skyline Run return, making a 772.65 m closed circuit. The visible circuit and collider share the same path frames. Solo allows the full 240-second maximum even when a bot finishes first; it ends sooner when all racers finish.
 - The course features native neighborhood and bridge geometry, bay water, a coastal sky, textured asphalt and Victorian siding, fine foliage, decorative lantern/crowd animation, a full-screen chase camera, course progress, standings, and speed. Moving road furniture remains static until gameplay collision is implemented.
-- Three AI opponents have been checked headlessly on the entire course with identical outcomes at 30/60/120 Hz. All 15 chassis complete the course with scooter wheels and regular spacing in a repeatable driving check (14 without recovery; the arcade cabinet with one recovery). Precise steering and hop timing can win with the starter build. These repeatable checks do not replace manual playtesting on actual devices.
+- The HUD previews turns and jump timing, tracks laps and collected rings, and briefly marks overtakes, clean landings, boosts, and the finish. The homepage previews the actual circuit and supports dragging to explore on desktop.
+- Repeatable checks cover steering direction, presentation timing, original-course AI and recovery, and three-lap circuit traversal. All four racers completed three laps in 145–148 seconds with no recovery at 120 Hz and with binary steering commands at 30 Hz. Headless checks do not replace manual playtesting on actual devices or establish balance for every build.
 
 ## Legacy two-player keyboard race
 
@@ -23,7 +24,7 @@ This mode is retained in code and hidden from the release entry flow. Both playe
 - Player 1: **A / D** to steer; hold **F** to charge, release to hop.
 - Player 2: **Left / right arrows** to steer; hold **J** to charge, release to hop.
 - Each side also has independent touch/mouse steering and hop controls.
-- Three heats, with build changes between them, standings, and a championship podium. Each heat allows up to 90 seconds, with a visible 12-second finish window after the leader finishes.
+- Three heats, with build changes between them, standings, and a championship podium. Each three-lap heat allows up to 240 seconds, with a visible 12-second finish window after the leader finishes.
 - **Escape** pauses the shared race. Leaving the game window also pauses both players; choose Resume to continue.
 
 ## Original phone course
@@ -50,6 +51,15 @@ The published site is public. Anyone with its link can play; no sign-in is requi
 Rooms support four phones and expire after two hours. Keep the shared screen open. A dropped controller pauses the simulation, and returning to the same phone tab restores its player slot. Ending a phone party returns to the previously selected local mode. Refreshing the shared screen requires a new room.
 
 The shared browser is authoritative for physics and outcomes. WebRTC sends inputs and full car/wheel poses directly when available (up to 30 updates per second). An HTTP relay provides a fallback, with ordered input sequence numbers preventing duplicate hops during handovers. Phones interpolate received poses, use a capped rendering resolution and omit expensive real-time shadows. Relay latency and actual device performance still need broader playtesting. Late joiners enter the next heat. The spectator screen must remain open and visible; this version does not run physics on a background server.
+
+
+## Background music
+
+The music-note button opens **Bay radio** on the home screen, in the garage, and during a race. It plays 12 tracks from the seven supplied OpenGameArt sources, including all six songs in Funk Collection. Music starts with a click, tap, or gameplay key, advances through the playlist, and loops back at the end. **Next track** skips a song; **Music volume** adjusts music independently of race effects. The speaker button mutes all sound. Music volume and master mute persist on this browser.
+
+Music pauses with the race and while the tab is hidden, then resumes at the same position. Files load one song at a time. Missing files skip forward; if the playlist cannot load, the panel offers a retry. The MP3s are loudness normalized and include full songs. Credits and source/license links are available inside Bay radio and in [music credits](public/audio/music/CREDITS.md). Sweet 70s is by Clement Panchout under CC BY 4.0; the remaining tracks are CC0.
+
+`node --import tsx game/music-player-check.ts` verifies activation, pause/visibility/mute, volume, playlist wrap, stale playback promises, missing assets, cleanup, and soundtrack metadata.
 
 ## Run locally
 
@@ -91,6 +101,14 @@ The repeatable physics checks exercise control rules, recovery, lane fairness, a
 
 `game/physics.ts` owns simulation, `game/track.ts` owns shared terrain geometry, `game/catalogue.ts` owns build definitions and validation, `game/visuals.ts` owns models and scenery, `game/renderer.ts` owns cameras/rendering, `game/course-scene.ts` loads the authored environment, `game/solo.ts` owns local opponents, and `components/DoodleDerby.tsx` owns the session and input integration. `components/DerbyUI.tsx` provides the garage and race screens.
 
+## Playable track choices
+
+Bay or Bust now has optional side lanes over the existing road and collision geometry. Two teal boost lanes in Mission Market and on the waterfront give a measured forward impulse when a car drives over them. Each pad triggers once per racer per lap. Boosts apply measured forward momentum and respect the speed limit for the upcoming road, including the bridge and pier approaches. Garden cobbles and the SoMa rumble lane add rolling resistance while grounded; hopping over them or taking the clear center avoids the penalty. The middle four metres remain clear, with a two-metre margin between every feature and the road edge.
+
+Gold rings over the Golden Gate and pier jumps reward crossing their actual opening while airborne. Ring collection is independent for each racer. Targets return each lap, while the collected total lasts for the race; a new heat clears it. Rings are a bonus challenge; race placement still depends on finishing and valid progress. The painted launch cues, strips, rings, and physics all use the same main-road distance definitions in `game/course-features.ts`. Boost streaks and ring particles follow real physics events and respect reduced motion.
+
+`node --import tsx game/course-features-check.ts` checks the optional driving lines, boost limits, rough-surface choices, ring collection, and reset behavior. Full-course driving, solo AI, classic physics, and Lantern Quarter recovery checks remain part of validation.
+
 ## Project materials
 
 - `app/`, `components/`, `game/`, `lib/`, and `db/`: playable game, phone controllers, room service, and simulation.
@@ -112,5 +130,7 @@ Solo checks: `node --import tsx game/solo-check.ts` covers the classic course AI
 Lantern Quarter regression: `node --import tsx game/course-recovery-check.ts` covers complete runs using binary arrow inputs, inside driving lines, loss of momentum, and rejection of physical relocations. Progress tracking allows for the sampled road's inside-corner projection seams while independently validating actual car movement.
 
 Direction and bridge checks: `node --import tsx game/steering-direction-check.ts` verifies real steering through a chase camera projection with keyboard/touch parity. `node --import tsx game/course-bridge-check.ts` loads the actual bridge asset and checks that its fitted spans meet, retain finite geometry, and clear the driving lane.
+
+Circuit checks: `node --import tsx game/circuit-check.ts` covers the connected return, lap continuity, complete runs, and shortcut rejection. `node --import tsx game/solo-presentation-check.ts` checks cue timing, event priority, and pause/restart behavior.
 
 Two-player keyboard checks: `node --import tsx game/local-race-check.ts` covers the shared course, separate steering/hop inputs, input clearing, mode resets, and heat timing.

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { groundHeight } from './track';
-import { BAY_OR_BUST_COURSE as course } from './course';
+import { courseForSnapshot } from './course';
+import { BOOST_FEEDBACK_SECONDS } from './course-features';
 import type { VehicleSnapshot } from './types';
 
 const CHARGE_SEGMENTS = 64;
@@ -15,6 +16,8 @@ export class RaceEffects {
  private airborneTime = 0;
  private hadSnapshot = false;
  private wasGrounded = false;
+ private lastRings = 0;
+ private boostStreaks: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>[];
 
  constructor(color: number) {
   this.charge = new THREE.Mesh(
@@ -24,6 +27,11 @@ export class RaceEffects {
   this.charge.rotation.x = -Math.PI / 2;
   this.charge.visible = false;
   this.group.add(this.charge);
+  const streakGeometry = new THREE.BoxGeometry(.055, .045, 2.2);
+  const streakMaterial = new THREE.MeshBasicMaterial({color:0x63ffd4,transparent:true,opacity:0,depthWrite:false});
+  this.boostStreaks = [-.7, 0, .7].map(() => {
+   const mesh = new THREE.Mesh(streakGeometry, streakMaterial); mesh.visible = false; this.group.add(mesh); return mesh;
+  });
   this.dust = Array.from({ length: DUST_COUNT }, (_, index) => {
    const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(0.18, 5, 4),
@@ -37,6 +45,7 @@ export class RaceEffects {
  }
 
  update(snapshot: VehicleSnapshot, dt: number, active: boolean, reducedMotion: boolean) {
+  const course=courseForSnapshot(snapshot);
   const surface=snapshot.courseId==='bay-or-bust'&&snapshot.pathDistance!==undefined?course.project(snapshot.position,{distance:snapshot.pathDistance,pathId:snapshot.pathId||'main'}):null;
   const point=surface?.position.vadd(surface.right.scale(surface.lateral));
   const ground = point?.y ?? groundHeight(snapshot.position.z);
@@ -47,11 +56,29 @@ export class RaceEffects {
   this.charge.geometry.setDrawRange(0, Math.ceil(snapshot.charge * CHARGE_SEGMENTS) * 6);
   this.charge.material.color.setHex(snapshot.charge > 0.92 ? 0xffde49 : 0xfff6d5);
 
+  const boost = Math.min(1, (snapshot.boostRemaining || 0) / BOOST_FEEDBACK_SECONDS);
+  this.boostStreaks.forEach((streak,index) => {
+   streak.visible = active && !reducedMotion && boost > 0 && !snapshot.recovering && !snapshot.finished;
+   if (!streak.visible) return;
+   streak.quaternion.copy(snapshot.quaternion);
+   const offset = new THREE.Vector3((index - 1) * .7, -.15, -2.6).applyQuaternion(streak.quaternion);
+   streak.position.copy(snapshot.position).add(offset);
+   streak.scale.z = .6 + boost;
+   streak.material.opacity = boost * .65;
+  });
+  const ringCollected = (snapshot.rings || 0) > this.lastRings;
+  this.lastRings = snapshot.rings || 0;
+  if (active && !reducedMotion && ringCollected) {
+   this.dust.forEach(puff => {
+    puff.age = 0; puff.mesh.position.copy(snapshot.position); puff.mesh.material.color.setHex(0x63ffd4); puff.mesh.visible = true;
+   });
+  }
   if (!snapshot.grounded && !snapshot.recovering) this.airborneTime += dt;
   if (snapshot.grounded) {
    if (active && !reducedMotion && this.hadSnapshot && !this.wasGrounded && this.airborneTime > 0.18 && !snapshot.recovering) {
     this.dust.forEach((puff) => {
      puff.age = 0;
+     puff.mesh.material.color.setHex(0xffefcf);
      puff.mesh.position.set(snapshot.position.x + puff.direction.x * 0.75, ground + 0.18, snapshot.position.z + puff.direction.z * 0.65);
      puff.mesh.visible = true;
     });

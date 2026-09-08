@@ -1,70 +1,168 @@
 import * as THREE from 'three';
-import { preloadModels, cloneModel } from './assets';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { loadCourseScene, disposeCourseScene } from './course-scene';
+import { BAY_CIRCUIT_COURSE as route } from './course';
+import { preloadModels } from './assets';
+import { DEFAULT_BUILDS, getBody, getWheel, wheelMounts } from './catalogue';
 import { createVehicleModel, createWheelModel } from './visuals';
-import { getBody, getWheel, wheelMounts } from './catalogue';
+import { SOLO_RIVALS } from './solo';
+import { PLAYER_COLORS } from './race';
 import { ReferenceLighting } from './reference-lighting.js';
-import type { Blueprint } from './types';
 
-/** A small attract scene uses the same chassis, wheels and drivers as the race. */
+/** A lightweight animated preview on the real circuit, independent of the race. */
 export async function createLandingScene(host: HTMLElement): Promise<(() => void) | undefined> {
-  await preloadModels();
-  if (!host.isConnected) return;
+  const [course] = await Promise.all([loadCourseScene(), preloadModels()]);
+  if (!host.isConnected) { disposeCourseScene(course); return; }
   let renderer: THREE.WebGLRenderer;
-  try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' }); } catch { return; }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-  renderer.setClearColor(0xf7f0df, 0);
+  try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' }); }
+  catch { disposeCourseScene(course); return; }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
+  renderer.setClearColor(0xb9d9df, 1);
   host.appendChild(renderer.domElement);
+
   const scene = new THREE.Scene();
-  const lighting = new ReferenceLighting(renderer, { showroomScene: scene, quality: 'mobile' });
-  const camera = new THREE.PerspectiveCamera(34, 1, .1, 120);
-  camera.position.set(14, 12, 19);
-  camera.lookAt(0, 1, 0);
-  const world = new THREE.Group(); scene.add(world);
-  function box(w: number, h: number, d: number, color: number, x: number, y: number, z: number) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color, roughness: .9 }));
-    mesh.position.set(x, y, z); mesh.castShadow = true; mesh.receiveShadow = true; world.add(mesh); return mesh;
-  }
-  box(10, .8, 16, 0xadc6b4, 0, -.6, 0);
-  box(6.8, .22, 16, 0xaaa993, 0, -.09, 0);
-  [-1, 1].forEach(side => { box(.9, .35, 16, 0xeadab9, side * 4, -.03, 0); box(.12, .24, 16, 0xf7f0df, side * 3.46, .03, 0); });
-  const marks = Array.from({ length: 8 }, (_, i) => box(.13, .02, .95, 0xffefc0, 0, .04, -7 + i * 2));
-  for (const [x, z, color] of [[-5.25, -4.8, 0xb7d4c3], [-5.25, .5, 0xe4ab91], [4.95, -5.8, 0xe6cd84]] as const) {
-    const house = cloneModel('house', { Wall: color });
-    if (house) {
-      const bounds = new THREE.Box3().setFromObject(house); const size = bounds.getSize(new THREE.Vector3());
-      house.scale.setScalar(3.2 / Math.max(size.x, size.z));
-      const scaled = new THREE.Box3().setFromObject(house); const center = scaled.getCenter(new THREE.Vector3());
-      house.position.set(x - center.x, -.2 - scaled.min.y, z - center.z);
-      house.rotation.y = x < 0 ? Math.PI / 2 : -Math.PI / 2;
-      world.add(house);
-    }
-  }
-  // A pair of real assembled game vehicles, each with independently rolling wheels.
-  const builds: Blueprint[] = [{ bodyId: 'sourdough', wheelId: 'scooter', wheelbase: 'standard' }, { bodyId: 'mission_burrito', wheelId: 'skate', wheelbase: 'standard' }];
-  const cars = builds.map((build, i) => {
-    const color = i ? 0x163c32 : 0xe65339;
-    const body = getBody(build.bodyId), wheel = getWheel(build.wheelId);
-    const car = new THREE.Group(); car.add(createVehicleModel(build, color));
-    const wheels = wheelMounts(build).map(mount => { const mesh = createWheelModel(build, color); mesh.position.set(...mount); car.add(mesh); return mesh; });
-    const baseY = body.height / 2 - .12 + wheel.radius + .06;
-    car.position.set(i ? -1.8 : 1.7, baseY, i ? -1.9 : 2.6); world.add(car);
-    return { car, wheels, baseY, z: car.position.z };
+  scene.background = course.sky ?? new THREE.Color(0xb9d9df);
+  scene.fog = new THREE.Fog(0xb9d9df, 180, 750);
+  // Share the race's color response, directional light and reflections so
+  // the homepage shows the same materials without lifting all the shadows.
+  const lighting = new ReferenceLighting(renderer, { raceScene: scene, quality: 'mobile' });
+  const coarse = window.matchMedia('(pointer: coarse)');
+  if (coarse.matches) renderer.shadowMap.enabled = false;
+  course.setCircuit(true);
+  scene.add(course.root);
+
+  const hero = route.frame(108);
+  const forward = new THREE.Vector3(hero.tangent.x, 0, hero.tangent.z).normalize();
+  const right = new THREE.Vector3(hero.right.x, 0, hero.right.z).normalize();
+  const center = new THREE.Vector3(hero.position.x, hero.position.y + 2.5, hero.position.z).addScaledVector(forward, 7);
+  const camera = new THREE.PerspectiveCamera(48, 1, .1, 1400);
+  camera.position.set(hero.position.x, hero.position.y + 8, hero.position.z).addScaledVector(forward, -12).addScaledVector(right, 5);
+  camera.lookAt(center);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.copy(center);
+  controls.enablePan = false; controls.enableZoom = true;
+  controls.minDistance = 12; controls.maxDistance = 420; controls.zoomSpeed = .7;
+  controls.enableDamping = false; controls.rotateSpeed = .45;
+  controls.minPolarAngle = Math.PI / 8; controls.maxPolarAngle = Math.PI / 2.2;
+  controls.enableRotate = !coarse.matches;
+  if (coarse.matches) renderer.domElement.style.touchAction = 'pan-y';
+  controls.update();
+
+  const models = new THREE.Group(); models.name = 'Live overview racers'; scene.add(models);
+  const trackLength = route.paths[0].samples.at(-1)!.s;
+  const scale = 1.8;
+  const blueprints = [DEFAULT_BUILDS[0], ...SOLO_RIVALS.map(rival => rival.build)];
+  const racers = blueprints.map((blueprint, id) => {
+    const body = getBody(blueprint.bodyId), wheel = getWheel(blueprint.wheelId);
+    const color = new THREE.Color(PLAYER_COLORS[id]).getHex();
+    const group = new THREE.Group(); group.name = `Preview racer ${id + 1}`; group.scale.setScalar(scale);
+    const car = createVehicleModel(blueprint, color);
+    car.position.y = body.height / 2 + wheel.radius + .2; group.add(car);
+    const wheels = wheelMounts(blueprint).map(([x, , z]) => {
+      const tire = createWheelModel(blueprint, color); tire.position.set(x, wheel.radius, z); group.add(tire); return tire;
+    });
+    const shadow = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshBasicMaterial({color:0x183c43,transparent:true,opacity:.2,depthWrite:false}));
+    shadow.rotation.x = -Math.PI / 2; shadow.scale.set(body.width * .7, body.length * .64, 1); shadow.position.y = .07;
+    group.add(shadow); models.add(group);
+    return { group, wheels, radius: wheel.radius, distance: 148 + id * 8, id };
   });
-  // Helper-created materials can be shared with the game renderer: own copies here.
-  const ownMaterials = new Map<THREE.Material, THREE.Material>();
-  scene.traverse(node => { if (node instanceof THREE.Mesh) { const own = (m: THREE.Material) => { if (!ownMaterials.has(m)) ownMaterials.set(m, m.clone()); return ownMaterials.get(m)!; }; node.material = Array.isArray(node.material) ? node.material.map(own) : own(node.material); } });
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const render = (time: number) => {
-    cars.forEach(({ car, wheels, baseY, z }, i) => { const phase = time * 1.15 + i * 2.6; const hop = Math.pow(Math.max(0, Math.sin(phase)), 8) * .42; car.position.y = baseY + hop; car.position.z = z + Math.sin(phase * .6) * .75; car.rotation.z = Math.sin(phase) * .018; car.rotation.x = Math.sin(phase) * .025; wheels.forEach(wheel => { wheel.rotation.x = time * 3.4; }); });
-    marks.forEach((mark, i) => { mark.position.z = ((i * 2 + time * 2) % 16) - 8; });
-    lighting.prepareShowroom();
-    renderer.render(scene, camera);
+  let packDistance = 120, animationTime = 0;
+  let cameraHeading = Math.atan2(hero.tangent.x, hero.tangent.z);
+  const positionRacers = (dt: number) => {
+    const frame = route.lookFrame(packDistance), ahead = route.lookFrame(packDistance + 8);
+    const bend = Math.acos(THREE.MathUtils.clamp(frame.tangent.dot(ahead.tangent), -1, 1));
+    const speed = THREE.MathUtils.clamp(20 - bend * 28, 10, 20);
+    packDistance = (packDistance + dt * speed) % trackLength; animationTime += dt;
+    for (const racer of racers) {
+      // Keep the showcase pack together, with small passes instead of the
+      // cars gradually spreading out and leaving the close camera empty.
+      const offset = (racer.id - (racers.length - 1) / 2) * 8 + Math.sin(animationTime * .24 + racer.id * 1.7) * 5;
+      racer.distance = (packDistance + offset + trackLength) % trackLength;
+      const current = route.lookFrame(racer.distance);
+      const lateral = racer.id % 2 ? 1.7 : -1.7;
+      racer.group.position.set(current.position.x, current.position.y, current.position.z)
+        .addScaledVector(new THREE.Vector3(current.right.x, current.right.y, current.right.z), lateral);
+      const q = route.orientation(current); racer.group.quaternion.set(q.x, q.y, q.z, q.w);
+      for (const wheel of racer.wheels) wheel.rotation.x += dt * speed / (racer.radius * scale);
+    }
   };
-  const resize = () => { const { width, height } = host.getBoundingClientRect(); renderer.setSize(width, height, false); camera.aspect = width / Math.max(1, height); camera.updateProjectionMatrix(); render(0); };
+  positionRacers(0);
+
+  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let disposed = false, pending = 0, visible = true, width = 1, height = 1, dirty = true;
+  const lightFocus = new THREE.Vector3();
+  let last = performance.now();
+  const draw = (now: number) => {
+    pending = 0;
+    if (disposed || !visible || document.hidden) return;
+    const since = (now - last) / 1000;
+    // Keep the large overview light while the main game prepares its assets.
+    if (dirty || since >= 1 / 30) {
+      const dt = motion.matches ? 0 : Math.min(Math.max(since, 0), .08);
+      last = now;
+      positionRacers(dt);
+      if (dt) {
+        // Stay just behind the lead showcase car, with rivals and the next
+        // corner ahead. Orbit/zoom offsets remain adjustable by the viewer.
+        const car = racers[0];
+        const road = route.lookFrame(car.distance + 3);
+        const direction = new THREE.Vector3(road.tangent.x, 0, road.tangent.z).normalize();
+        const target = car.group.position.clone().addScaledVector(direction, 7); target.y += 2.5;
+        const heading = Math.atan2(direction.x, direction.z);
+        const turn = Math.atan2(Math.sin(heading - cameraHeading), Math.cos(heading - cameraHeading)) * (1 - Math.exp(-dt * 3));
+        cameraHeading += turn;
+        const offset = camera.position.clone().sub(controls.target).applyAxisAngle(new THREE.Vector3(0, 1, 0), turn);
+        controls.target.lerp(target, 1 - Math.exp(-dt * 5));
+        camera.position.copy(controls.target).add(offset); camera.lookAt(controls.target);
+      }
+      if (dt) course.mixer.update(dt);
+      course.features.update(undefined, dt, true, motion.matches);
+      const litRoad = route.lookFrame(racers[0].distance + 10);
+      lightFocus.set(litRoad.position.x, litRoad.position.y, litRoad.position.z);
+      lighting.prepareRaceView(lightFocus);
+      renderer.render(scene, camera); dirty = false;
+    }
+    if (!motion.matches) pending = requestAnimationFrame(draw);
+  };
+  const requestRender = () => {
+    dirty = true;
+    if (!disposed && visible && !document.hidden && !pending) pending = requestAnimationFrame(draw);
+  };
+  const refit = () => {
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    requestRender();
+  };
+  controls.addEventListener('change', requestRender);
+  const resize = () => {
+    const rect = host.getBoundingClientRect();
+    if (!rect.width || !rect.height || disposed) return;
+    width = rect.width; height = rect.height;
+    renderer.setSize(width, height, false); refit();
+  };
   const observer = new ResizeObserver(resize); observer.observe(host); resize();
-  let frame = 0, last = 0, time = 0;
-  const animate = (now: number) => { frame = requestAnimationFrame(animate); if (document.hidden || reduced.matches) { last = now; return; } if (now - last < 33) return; time += Math.min(.06, (now - last) / 1000); last = now; render(time); };
-  frame = requestAnimationFrame(animate);
-  const onReduced = () => render(0); reduced.addEventListener('change', onReduced);
-  return () => { cancelAnimationFrame(frame); observer.disconnect(); reduced.removeEventListener('change', onReduced); const geometries = new Set<THREE.BufferGeometry>(); scene.traverse(node => { if (node instanceof THREE.Mesh) geometries.add(node.geometry); }); geometries.forEach(g => g.dispose()); ownMaterials.forEach(m => m.dispose()); lighting.dispose(); renderer.dispose(); renderer.domElement.remove(); };
+  const visibility = () => { last = performance.now(); requestRender(); };
+  const intersection = new IntersectionObserver(entries => {
+    visible = entries.some(entry => entry.isIntersecting);
+    last = performance.now(); requestRender();
+  });
+  intersection.observe(host);
+  document.addEventListener('visibilitychange', visibility);
+  motion.addEventListener('change', requestRender);
+
+  return () => {
+    disposed = true; cancelAnimationFrame(pending); observer.disconnect(); intersection.disconnect();
+    document.removeEventListener('visibilitychange', visibility); motion.removeEventListener('change', requestRender);
+    controls.removeEventListener('change', requestRender); controls.dispose();
+    const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>(), textures = new Set<THREE.Texture>();
+    models.traverse(node => {
+      if (node instanceof THREE.Mesh || node instanceof THREE.LineSegments) {
+        geometries.add(node.geometry);
+        for (const material of Array.isArray(node.material) ? node.material : [node.material]) materials.add(material);
+      }
+      if (node.userData.disposeTexture instanceof THREE.Texture) textures.add(node.userData.disposeTexture);
+    });
+    geometries.forEach(geometry => geometry.dispose()); materials.forEach(material => material.dispose()); textures.forEach(texture => texture.dispose());
+    lighting.dispose(); disposeCourseScene(course); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
+  };
 }

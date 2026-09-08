@@ -2,7 +2,7 @@ import type { PlayerId } from './types';
 
 export const PLAYER_IDS: PlayerId[] = [0, 1, 2, 3];
 export const PLAYER_NAMES = ['BLUE CREW', 'RED RIOT', 'GREEN MACHINE', 'PURPLE HAZE'];
-export const PLAYER_COLORS = ['#3254ee', '#f45a4e', '#138b65', '#9955dc'];
+export const PLAYER_COLORS = ['#3254ee', '#f45a4e', '#138b65', '#9955dc', '#e2a414', '#da4b92', '#1397a4', '#d57132'];
 type Standing = { id: PlayerId; finished: boolean; finishTime: number | null; progress: number };
 
 export function compareRace(a: Standing, b: Standing): number {
@@ -32,7 +32,7 @@ export function racePlace(snapshot: Standing, snapshots: Standing[]): number {
   return 1;
 }
 export function heatPoints(snapshots: Standing[]): number[] {
-  const rank = rankRace(snapshots), points = [0, 0, 0, 0], awards = [5, 3, 2, 1];
+  const rank = rankRace(snapshots), points = Array(Math.max(4, ...snapshots.map(s => s.id + 1))).fill(0), awards = snapshots.length > 4 ? [10, 8, 6, 5, 4, 3, 2, 1] : [5, 3, 2, 1];
   for (let i = 0; i < rank.length;) {
     let end = i + 1;
     while (end < rank.length && compareRace(rank[i], rank[end]) === 0) end++;
