@@ -8,5 +8,6 @@ export interface WheelDef { id: WheelId; name: string; radius: number; mass: num
 export interface Vec3 { x: number; y: number; z: number }
 export interface Quat { x: number; y: number; z: number; w: number }
 export interface Pose { position: Vec3; quaternion: Quat }
-export interface VehicleSnapshot extends Pose { id: PlayerId; wheels: Pose[]; speed: number; progress: number; charge: number; grounded: boolean; recovering: boolean; finished: boolean; finishTime: number | null; flips: number; recoveries: number; jumps: number; maxRoll: number; blueprint: Blueprint; courseId?: 'bay-or-bust'; pathId?: string; pathDistance?: number }
+export interface CircuitSnapshot { circuit?: boolean; lap?: number; laps?: number; lapTime?: number; bestLap?: number | null; lastLap?: number | null }
+export interface VehicleSnapshot extends Pose, CircuitSnapshot { id: PlayerId; wheels: Pose[]; speed: number; progress: number; charge: number; grounded: boolean; recovering: boolean; finished: boolean; finishTime: number | null; flips: number; recoveries: number; jumps: number; maxRoll: number; blueprint: Blueprint; courseId?: 'bay-or-bust'; pathId?: string; pathDistance?: number; boosts?: number; rings?: number; collectedRings?: string[]; boostRemaining?: number; onRough?: boolean }
 export interface TrackPiece { id: string; name: string; position: [number,number,number]; size: [number,number,number]; rotation: [number,number,number]; color: number }

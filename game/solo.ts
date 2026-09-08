@@ -1,7 +1,7 @@
 import type { DerbyPhysics } from './physics';
 import { Quaternion, Vec3 } from 'cannon-es';
 import { wheelMounts } from './catalogue';
-import { BAY_OR_BUST_COURSE as course } from './course';
+import { courseForSnapshot } from './course';
 import type { Blueprint, PlayerId, VehicleSnapshot } from './types';
 
 export type LocalMode = 'solo' | 'local';
@@ -36,7 +36,8 @@ export function courseHopHeld(snapshot:VehicleSnapshot):boolean {
  * frames; it never edits the car's position, rotation, velocity, or progress. */
 export function courseSteering(snapshot:VehicleSnapshot):number {
   if(snapshot.finished||snapshot.recovering||snapshot.pathDistance===undefined)return 0;
-  const target=course.frame(snapshot.pathDistance+Math.max(4,snapshot.speed*.6),snapshot.pathId);
+  const course = courseForSnapshot(snapshot);
+  const target=course.lookFrame(snapshot.pathDistance+Math.max(4,snapshot.speed*.6),snapshot.pathId);
   const lane=[-1.5,-.5,.5,0][snapshot.id];
   const point=target.position.vadd(target.right.scale(lane));
   const q=snapshot.quaternion;
