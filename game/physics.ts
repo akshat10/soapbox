@@ -3,8 +3,9 @@ import { getBody, getWheel, isLegalBuild, wheelMounts } from './catalogue';
 import { BAY_OR_BUST_COURSE, BAY_CIRCUIT_COURSE, type DerbyCourse, type RoadProjection } from './course';
 import { applyArcadeDrive, ARCADE_DRIVE, roadSpeedLimit } from './arcade-drive';
 import { containOnTrack } from './track-boundary';
+import { MANUAL_BOOST, boostRechargeRate } from './manual-boost';
 import { bridgeColliders, OBSTACLE_GROUP } from './course-obstacles';
-import { AERIAL_RINGS, BOOST_PADS, ROUGH_PATCHES, BOOST_SPEED_GAIN, BOOST_SPEED_CAP, BOOST_FEEDBACK_SECONDS, ROUGH_RESISTANCE, insideStrip } from './course-features';
+import { AERIAL_RINGS, BOOST_PADS, ROUGH_PATCHES, BOOST_SPEED_GAIN, BOOST_SPEED_CAP, BOOST_FEEDBACK_SECONDS, RESET_BOOST_SECONDS, RESET_SPEED_GAIN, ROUGH_RESISTANCE, insideStrip } from './course-features';
 import { CHECKPOINT_ZS, FINISH_Z, LANE_CENTERS, START_Z, TRACK_PIECES, groundHeight } from './track';
 import type { Blueprint, PlayerId, Pose, VehicleSnapshot } from './types';
 
@@ -50,6 +51,8 @@ interface Racer {
   boosts: Set<string>;
   collectedRings: Set<string>;
   boostRemaining: number;
+  boostCharge: number;
+  manualBoosts: number;
   onRough: boolean;
   lap: number;
   lapStartedAt: number;
@@ -172,7 +175,7 @@ export class DerbyPhysics {
       mass: body.mass + 4 * wheels.mass,
       material: this.chassisMaterial,
       linearDamping: 0.014,
-      angularDamping: 0.16,
+      angularDamping: this.arcadeEnabled ? 0.32 : 0.16,
       collisionFilterGroup: VEHICLE_GROUP,
       collisionFilterMask: GROUND_GROUP | VEHICLE_GROUP | OBSTACLE_GROUP,
       allowSleep: false,
@@ -194,7 +197,7 @@ export class DerbyPhysics {
           frictionSlip: wheels.grip * 2.5,
           maxSuspensionForce: 100000,
           maxSuspensionTravel: 0.25,
-          rollInfluence: 0.12,
+          rollInfluence: this.arcadeEnabled ? 0.04 : 0.12,
           useCustomSlidingRotationalSpeed: false,
         });
     }
@@ -213,7 +216,7 @@ export class DerbyPhysics {
     }
     const racer: Racer = {
       id, blueprint: { ...blueprint }, chassis, vehicle, laneAnchor, laneConstraint,
-      boosts: new Set(), collectedRings: new Set(), boostRemaining: 0, onRough: false,
+      boosts: new Set(), collectedRings: new Set(), boostRemaining: 0, boostCharge: 1, manualBoosts: 0, onRough: false,
       lap: 1, lapStartedAt: 0, bestLap: null, lastLap: null, lapCheckpoint: 1, totalBoosts: 0, totalRings: 0,
       steering: 0, steeringAngle: 0, wheelbaseLength: Math.abs(wheelMounts(blueprint)[0][2] - wheelMounts(blueprint)[2][2]),
       route: null, lastCoursePosition: new Vec3(), validCourseDistance: this.course?.startDistance ?? START_Z, offRoadSeconds: 0,
@@ -226,7 +229,7 @@ export class DerbyPhysics {
       lastGroundedAt: -Infinity, bufferedRelease: 0,
     };
     this.racers.set(id, racer);
-    this.placeAt(racer, this.course?.startDistance ?? START_Z);
+    this.placeAt(racer, this.course ? this.course.startDistance + Math.floor(id / 4) * 5.5 : START_Z);
     chassis.addEventListener('collide', (event: { contact: { getImpactVelocityAlongNormal(): number } }) => {
       const impact = Math.abs(event.contact.getImpactVelocityAlongNormal());
       if (impact > 2.5 && this.elapsed - racer.collisionAt > 0.7 && !racer.recoveryLeft && !racer.finished) {
@@ -275,6 +278,17 @@ export class DerbyPhysics {
     if (racer) racer.steering = 0;
   }
 
+  /** A tap starts one timed burst. Held/repeated keys cannot stack boosts. */
+  activateBoost(id: PlayerId): boolean {
+    const racer = this.racers.get(id);
+    if (!this.running || !this.arcadeEnabled || !racer || racer.finished || racer.recoveryLeft > 0 || racer.boostCharge < 1 || racer.boostRemaining > 0) return false;
+    racer.boostCharge = 0;
+    racer.boostRemaining = MANUAL_BOOST.duration;
+    racer.manualBoosts++;
+    this.record(racer, 'boost', MANUAL_BOOST.duration);
+    return true;
+  }
+
   /** Focus loss and screen changes clear state without treating release as a jump. */
   clearInputs(): void {
     for (const racer of this.racers.values()) {
@@ -298,6 +312,8 @@ export class DerbyPhysics {
     this.accumulator += Math.min(dtSeconds, 0.1);
     while (this.accumulator >= STEP) {
       this.elapsed += STEP;
+      const progress = (racer: Racer) => this.course ? (racer.lap - 1 + this.course.progress(racer.validCourseDistance)) / this.lapCount : 0;
+      const leaderProgress = Math.max(0, ...[...this.racers.values()].map(progress));
       for (const racer of this.racers.values()) {
         if (racer.finished) continue;
         if (this.steeringEnabled) {
@@ -310,6 +326,7 @@ export class DerbyPhysics {
           racer.vehicle.setSteeringValue(racer.steeringAngle, 1);
         }
         racer.boostRemaining = Math.max(0, racer.boostRemaining - STEP);
+        if (this.arcadeEnabled && racer.boostRemaining === 0) racer.boostCharge = Math.min(1, racer.boostCharge + STEP * boostRechargeRate(progress(racer), leaderProgress));
         if (this.arcadeEnabled && this.course && racer.route && !racer.finished && racer.recoveryLeft <= 0) {
           applyArcadeDrive(racer.chassis, racer.route, this.course, racer.grounded, racer.boostRemaining > 0, STEP, racer.steeringAngle, racer.wheelbaseLength);
         }
@@ -364,6 +381,7 @@ export class DerbyPhysics {
         jumps: racer.jumps,
         maxRoll: racer.maxRoll,
         blueprint: { ...racer.blueprint },
+        ...(this.arcadeEnabled ? { boostCharge: racer.boostCharge, manualBoosts: racer.manualBoosts } : {}),
         ...(this.course && racer.route ? { courseId: this.course.id, pathId: racer.route.pathId, pathDistance: racer.route.distance, boosts: racer.totalBoosts, rings: racer.totalRings, collectedRings: [...racer.collectedRings], boostRemaining: racer.boostRemaining, onRough: racer.onRough } : {}),
         ...(this.course?.circuit ? { circuit: true, lap: racer.lap, laps: this.lapCount, lapTime: racer.finished ? racer.lastLap! : this.elapsed - racer.lapStartedAt, bestLap: racer.bestLap, lastLap: racer.lastLap } : {}),
       };
@@ -539,7 +557,7 @@ export class DerbyPhysics {
         racer.chassis.applyImpulse(route.tangent.scale(racer.chassis.mass * gain));
         racer.boosts.add(pad.id);
         racer.totalBoosts++;
-        racer.boostRemaining = BOOST_FEEDBACK_SECONDS;
+        racer.boostRemaining = Math.max(racer.boostRemaining, BOOST_FEEDBACK_SECONDS);
         this.record(racer, 'boost', gain);
       }
     }
@@ -560,6 +578,12 @@ export class DerbyPhysics {
         if (crossing.dot(frame.right) ** 2 + crossing.dot(frame.up) ** 2 > radius ** 2) continue;
         racer.collectedRings.add(ring.id);
         racer.totalRings++;
+        // A reset grants real forward momentum plus a temporary powered window.
+        // Preserve vertical jump velocity, lap eligibility and manual boost charge.
+        const cap = this.arcadeEnabled ? ARCADE_DRIVE.boostSpeed : BOOST_SPEED_CAP;
+        const gain = Math.min(RESET_SPEED_GAIN, Math.max(0, cap - racer.chassis.velocity.dot(frame.tangent)));
+        racer.chassis.applyImpulse(frame.tangent.scale(racer.chassis.mass * gain));
+        racer.boostRemaining = Math.max(racer.boostRemaining, RESET_BOOST_SECONDS);
         this.record(racer, 'ring', racer.totalRings);
       }
     }
@@ -616,7 +640,7 @@ export class DerbyPhysics {
     if (this.course) {
       const frame = this.course.frame(z, racer.route?.pathId ?? 'main');
       // Recover close to the driver's former line, safely inside the road edge.
-      const offset = restoreVelocity ? Math.max(-5, Math.min(5, racer.route?.lateral ?? LANE_CENTERS[racer.id])) : LANE_CENTERS[racer.id];
+      const offset = restoreVelocity ? Math.max(-5, Math.min(5, racer.route?.lateral ?? LANE_CENTERS[racer.id % 4])) : LANE_CENTERS[racer.id % 4];
       racer.chassis.quaternion.copy(this.course.orientation(frame));
       racer.chassis.position.copy(frame.position.vadd(frame.right.scale(offset)).vadd(frame.up.scale(height)));
       racer.route = this.course.project(racer.chassis.position, frame);

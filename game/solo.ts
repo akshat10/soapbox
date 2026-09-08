@@ -5,10 +5,15 @@ import { courseForSnapshot } from './course';
 import type { Blueprint, PlayerId, VehicleSnapshot } from './types';
 
 export type LocalMode = 'solo' | 'local';
+export const SOLO_PLAYER_IDS: PlayerId[] = [0, 1, 2, 3, 4, 5, 6, 7];
 export const SOLO_RIVALS: { id: PlayerId; name: string; style: string; build: Blueprint; release: [number, number] }[] = [
   { id: 1, name: 'Mission Control', style: 'Late hops. Extra salsa.', build: { bodyId: 'mission_burrito', wheelId: 'skate', wheelbase: 'standard' }, release: [85.2, 228] },
   { id: 2, name: 'Rent Controlled', style: 'Steady wheels. High rent.', build: { bodyId: 'painted_porch', wheelId: 'transit_disc', wheelbase: 'standard' }, release: [85.2, 228] },
   { id: 3, name: 'Toast Malone', style: 'All crust. No brakes.', build: { bodyId: 'toaster', wheelId: 'scooter', wheelbase: 'standard' }, release: [84.4, 226.8] },
+  { id: 4, name: 'Dough Main', style: 'On a roll.', build: { bodyId: 'sourdough', wheelId: 'scooter', wheelbase: 'standard' }, release: [85, 228] },
+  { id: 5, name: 'Burrito Bandit', style: 'Extra hot laps.', build: { bodyId: 'mission_burrito', wheelId: 'scooter', wheelbase: 'long' }, release: [84.8, 227.5] },
+  { id: 6, name: 'Porch Pirate', style: 'Curb appeal. Corner speed.', build: { bodyId: 'painted_porch', wheelId: 'skate', wheelbase: 'standard' }, release: [85.2, 228] },
+  { id: 7, name: 'Burn Rate', style: 'Hot out of the toaster.', build: { bodyId: 'toaster', wheelId: 'skate', wheelbase: 'long' }, release: [84.7, 227.2] },
 ];
 
 /** Local game AI: reads the same race snapshot and holds/releases the same hop
@@ -38,7 +43,7 @@ export function courseSteering(snapshot:VehicleSnapshot):number {
   if(snapshot.finished||snapshot.recovering||snapshot.pathDistance===undefined)return 0;
   const course = courseForSnapshot(snapshot);
   const target=course.lookFrame(snapshot.pathDistance+Math.max(4,snapshot.speed*.6),snapshot.pathId);
-  const lane=[-1.5,-.5,.5,0][snapshot.id];
+  const lane=[-3.8,-1.3,1.3,3.8,-3.8,-1.3,1.3,3.8][snapshot.id];
   const point=target.position.vadd(target.right.scale(lane));
   const q=snapshot.quaternion;
   const local=new Quaternion(q.x,q.y,q.z,q.w).conjugate().vmult(new Vec3(point.x-snapshot.position.x,point.y-snapshot.position.y,point.z-snapshot.position.z));

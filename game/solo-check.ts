@@ -9,7 +9,7 @@ const outcomes = (snapshots: VehicleSnapshot[]) => snapshots.map(({ id, finished
 
 function race(heat: number, hz: number, timed: boolean) {
   const physics = new DerbyPhysics(), driver = new SoloRaceDriver();
-  const builds = [{ ...DEFAULT_BUILDS[0] }, ...SOLO_RIVALS.map(rival => ({ ...rival.build }))];
+  const builds = [{ ...DEFAULT_BUILDS[0] }, ...SOLO_RIVALS.slice(0,3).map(rival => ({ ...rival.build }))];
   assert(builds.every(isLegalBuild));
   physics.reset(builds, PLAYER_IDS); physics.start();
   let elapsed = 0;
@@ -47,7 +47,7 @@ for (const heat of [1, 2, 3]) {
 }
 assert.deepEqual(race(1, 60, true), race(1, 60, true), 'Replays are deterministic.');
 const physics = new DerbyPhysics(), driver = new SoloRaceDriver();
-physics.reset([{ ...DEFAULT_BUILDS[0] }, ...SOLO_RIVALS.map(rival => ({ ...rival.build }))], PLAYER_IDS); physics.start();
+physics.reset([{ ...DEFAULT_BUILDS[0] }, ...SOLO_RIVALS.slice(0,3).map(rival => ({ ...rival.build }))], PLAYER_IDS); physics.start();
 driver.update(physics, 1 / 240, 1); driver.reset();
 const before = physics.getSnapshots();
 assert.equal(driver.update(physics, 1 / 240, 2), 0, 'A rematch clears fractional time from the prior heat.');
