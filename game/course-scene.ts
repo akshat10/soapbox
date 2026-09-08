@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { conformCourseBridges } from './course-bridge';
 import { CourseFeatureVisuals } from './course-feature-visuals';
 import { createCircuitScene } from './circuit-scene';
+import { createCityBackdrop } from './city-backdrop';
 import { BAY_CIRCUIT_COURSE as course } from './course';
 
 /** Reuse the authored arch and paint at the joined start/finish. Their road
@@ -53,6 +54,7 @@ export async function loadCourseScene(): Promise<CourseScene> {
     if (assetId === 'track_aerial_ring') { ringPrototype ??= node; node.visible = false; }
     if (assetId === 'track_boost_pad' || /sf_cloud_cluster|^sf_distant_sailboat[._]?006$|^sf_coastal_rocks[._]?006$/i.test(node.name)) node.visible = false;
   });
+  const cityBackdrop = createCityBackdrop(root);
   root.updateMatrixWorld(true);
   const protectedNodes = new Set<THREE.Object3D>(circuitProtected);
   const names = new Map<string, THREE.Object3D>();
@@ -95,6 +97,7 @@ export async function loadCourseScene(): Promise<CourseScene> {
     batch.instanceMatrix.needsUpdate = true; batch.computeBoundingSphere(); root.add(batch);
   }
   const features = new CourseFeatureVisuals(root, ringPrototype);
+  root.add(cityBackdrop);
   features.setCircuit(true);
   const returnRoad=createCircuitScene();root.add(returnRoad);
   let circuitActive=true;
